@@ -1,19 +1,9 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import {
-  BloomEffect,
-  BrightnessContrastEffect,
-  EffectComposer,
-  EffectPass,
-  HueSaturationEffect,
-  RenderPass,
-  SMAAEffect,
-  ToneMappingEffect,
-  ToneMappingMode,
-  VignetteEffect,
-} from 'postprocessing'
 import { createCarVisual, type CarVisual } from './cars.ts'
+import { createPost, type PostTier } from './post.ts'
+import { createSky } from './sky.ts'
 import { loadSurfaces, type SurfaceSet } from './surfaces.ts'
 import {
   createChecker,
@@ -57,28 +47,30 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   renderer.setSize(canvas.clientWidth || 1280, canvas.clientHeight || 720, false)
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  renderer.toneMapping = THREE.NoToneMapping
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 0.85
   renderer.outputColorSpace = THREE.SRGBColorSpace
 
   const scene = new THREE.Scene()
-  scene.fog = new THREE.Fog(0xff8a62, 140, 620)
+  scene.fog = new THREE.Fog(0xff7a6a, 160, 720)
   const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 40000)
 
   const [hdr, surfaces] = await Promise.all([
-    new RGBELoader().loadAsync('/assets/hdri/venice_sunset_2k.hdr'),
+    new RGBELoader().loadAsync('/assets/hdri/venice_sunset_1k.hdr'),
     loadSurfaces(),
   ])
   hdr.mapping = THREE.EquirectangularReflectionMapping
   const pmrem = new THREE.PMREMGenerator(renderer)
   scene.environment = pmrem.fromEquirectangular(hdr).texture
-  scene.background = hdr
-  scene.environmentIntensity = 1.15
+  scene.environmentIntensity = 0.9
   pmrem.dispose()
+  hdr.dispose()
 
-  const sun = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(81), THREE.MathUtils.degToRad(236))
-  const hemi = new THREE.HemisphereLight(0xffc4a2, 0x0d3c46, 0.62)
+  const sun = new THREE.Vector3(-0.55, 0.38, -0.32).normalize()
+  const sky = createSky(scene, sun)
+  const hemi = new THREE.HemisphereLight(0xffb0c8, 0x806058, 0.95)
   scene.add(hemi)
-  const sunLight = new THREE.DirectionalLight(0xffb15a, 4.4)
+  const sunLight = new THREE.DirectionalLight(0xffc0d8, 1.65)
   sunLight.castShadow = true
   sunLight.shadow.mapSize.set(1024, 1024)
   sunLight.shadow.bias = -0.0004
@@ -100,13 +92,11 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   buildProps(scene, track, surfaces)
   buildRails(scene, track)
 
-  const cars = await Promise.all(
-    race.cars.map(async (car) => {
-      const visual = await createCarVisual(car.color, car.accent, car.number)
-      scene.add(visual.root)
-      return visual
-    }),
-  )
+  const cars = race.cars.map((car) => {
+    const visual = createCarVisual(car.color, car.accent, car.number)
+    scene.add(visual.root)
+    return visual
+  })
   const dust = buildDust(scene)
   const sparks = buildSparks(scene)
   const waterNormal = scene.getObjectByName('water') as THREE.Mesh | undefined
@@ -116,41 +106,25 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   const look = new THREE.Vector3()
   let shakeLeft = 0
   let camTime = 0
-  const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType })
-  const bloom = new BloomEffect({
-    intensity: 0.4,
-    luminanceThreshold: 0.86,
-    luminanceSmoothing: 0.2,
-    mipmapBlur: true,
-    radius: 0.65,
-  })
-  const bloomPass = new EffectPass(camera, bloom)
-  const gradePass = new EffectPass(
-    camera,
-    new SMAAEffect(),
-    new HueSaturationEffect({ saturation: 0.16 }),
-    new BrightnessContrastEffect({ brightness: 0.03, contrast: 0.1 }),
-    new VignetteEffect({ offset: 0.28, darkness: 0.52 }),
-    new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
-  )
-  composer.addPass(new RenderPass(scene, camera))
-  composer.addPass(bloomPass)
-  composer.addPass(gradePass)
+  const post = createPost(renderer, scene, camera)
   let quality: Quality = 'moyen'
-  let mobileSlow = 0
-  let postEnabled = true
-  const mobile = window.matchMedia('(pointer: coarse)').matches
+  let slowFrames = 0
+  const mobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820
+  const tierFor = (next: Quality): PostTier => {
+    if (next === 'bas') return 'basse'
+    if (mobile) return 'phone'
+    return next === 'eleve' ? 'haute' : 'moyenne'
+  }
   const skids = createSkids(scene)
   const applyQuality = (next: Quality) => {
     quality = next
-    const size = next === 'eleve' ? 2048 : 1024
+    const tier = tierFor(next)
+    const size = tier === 'haute' ? 1024 : 512
     sunLight.shadow.mapSize.set(size, size)
     sunLight.shadow.map?.dispose()
     sunLight.shadow.map = null
-    const fancy = next !== 'bas' && postEnabled
-    sunLight.castShadow = fancy
-    bloomPass.enabled = fancy
-    bloom.intensity = next === 'eleve' ? 0.48 : 0.34
+    sunLight.castShadow = tier === 'haute' || tier === 'moyenne'
+    post.setTier(tier)
   }
   applyQuality('moyen')
 
@@ -159,7 +133,7 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
     setSize: (width, height, pixelRatio) => {
       renderer.setPixelRatio(pixelRatio)
       renderer.setSize(width, height, false)
-      composer.setSize(width, height, false)
+      post.setSize()
       camera.aspect = width / Math.max(1, height)
       camera.updateProjectionMatrix()
     },
@@ -179,29 +153,30 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
       const player = race.cars[0]!
       shakeLeft = Math.max(shakeLeft, Math.min(1.2, player.impact * 0.08))
       const focus = focusPoint(track, race, view)
-      sunLight.position.set(focus.x + sun.x * 48, Math.max(10, sun.y * 48), focus.z + sun.z * 48)
+      sunLight.position.set(focus.x + sun.x * 70, focus.y + sun.y * 70, focus.z + sun.z * 70)
       sunLight.target.position.set(focus.x, focus.y, focus.z)
       sunLight.target.updateMatrixWorld()
+      sky.position.copy(camera.position)
       camTime += dt
       updateCamera(camera, camPos, look, track, race, view, dt, shakeLeft, camTime)
       shakeLeft = Math.max(0, shakeLeft - dt * 1.6)
-      if (mobile && dt > 1 / 50) mobileSlow += 1
-      else mobileSlow = Math.max(0, mobileSlow - 1)
-      if (mobile && mobileSlow > 24 && postEnabled) {
-        postEnabled = false
-        applyQuality(quality)
+      if (dt > 1 / 30) slowFrames += 1
+      else slowFrames = Math.max(0, slowFrames - 1)
+      if (slowFrames > 20 && post.tier() === 'haute') {
+        slowFrames = 0
+        post.setTier('moyenne')
+        sunLight.castShadow = true
+      } else if (slowFrames > 20 && post.tier() === 'moyenne') {
+        slowFrames = 0
+        post.setTier(mobile ? 'basse' : 'phone')
+        sunLight.castShadow = false
       }
-      if (postEnabled && quality !== 'bas') composer.render()
-      else {
-        renderer.toneMapping = THREE.ACESFilmicToneMapping
-        renderer.toneMappingExposure = 1.2
-        renderer.render(scene, camera)
-        renderer.toneMapping = THREE.NoToneMapping
-      }
+      if (post.tier() === 'basse') renderer.render(scene, camera)
+      else post.render()
     },
     setQuality: (next) => {
       applyQuality(next)
-      composer.setSize(canvas.clientWidth, canvas.clientHeight)
+      post.setSize()
     },
   }
   return world
@@ -785,7 +760,7 @@ function updateCars(race: Race, cars: CarVisual[]): void {
     const pitch = THREE.MathUtils.clamp(-car.accel * 0.003, -0.04, 0.04)
     view.body.rotation.set(pitch, 0, roll)
     const spin = car.wheelSpin % (Math.PI * 2)
-    for (const wheel of view.spins) wheel.rotation.x = spin
+    for (const wheel of view.spins) wheel.rotation.z = spin
     for (const steer of view.steers) steer.rotation.y = -car.steer * 0.42
     view.tail.emissiveIntensity = car.brake > 0.12 ? 3 : 0.4
   }

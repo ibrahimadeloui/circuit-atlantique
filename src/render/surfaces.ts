@@ -9,7 +9,7 @@ export type SurfaceSet = {
 
 export async function loadSurfaces(): Promise<SurfaceSet> {
   const [asphalt, grass, sand, concrete] = await Promise.all([
-    loadPbr('asphalt', 1, 1, 0xb4bcc6),
+    loadPbr('asphalt', 1, 1, 0x2a3038),
     loadPbr('grass', 18, 18, 0xffffff),
     loadPbr('sand', 1, 1, 0xffe6c2),
     loadPbr('concrete', 1, 1, 0xe6ddd2),

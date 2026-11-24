@@ -7,6 +7,7 @@ export type DriveInput = {
   brake: number
   steer: number
   handbrake: boolean
+  nitro?: boolean
 }
 
 const MASS = 1280
@@ -65,7 +66,8 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
     let tq = torqueMul(Math.min(Math.max(trpm, IDLE), 7600))
     if (drivenRpm > LIMIT && throttle > 0.4) tq *= 0.12
     const ratio = GEAR_RATIOS[car.gear] ?? GEAR_RATIOS[0]!
-    force += throttle * tq * ratio * 6400
+    const boost = input.nitro && throttle > 0.45 ? 1.28 : 1
+    force += throttle * tq * ratio * 6400 * boost
   }
   if (wantsReverse) force -= 5200 * brake
   else if (brake > 0.03 && car.speed > 0.2) force -= brake * 17500
@@ -88,7 +90,8 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
 
   const speedAbs = Math.abs(car.speed)
   const lock = 0.46 + (0.11 - 0.46) * clamp(speedAbs / 58, 0, 1)
-  const delta = -steer * lock
+  const softer = 1 - 0.28 * clamp(speedAbs / 64, 0, 1)
+  const delta = -steer * lock * softer
   const vx = car.speed
   let vy = -car.slip
   let yaw = car.yawRate
@@ -120,7 +123,8 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
   }
   yaw = clamp(yaw, -1.8, 1.8)
   vy = clamp(vy, -12, 12)
-  car.heading = wrapAngle(car.heading + yaw * dt)
+  const turn = clamp(yaw * dt, -0.2, 0.2)
+  car.heading = wrapAngle(car.heading + turn)
   car.yawRate = yaw
   car.slip = clamp(-vy, -14, 14)
   car.slipAngle = (Math.abs(alphaF) + Math.abs(alphaR)) * 0.5

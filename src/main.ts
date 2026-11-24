@@ -9,6 +9,7 @@ import { aiDrive } from './sim/ai.ts'
 import { RACE_LAPS, createRace, resetRace, respawnCar, standings, stepRace } from './sim/race.ts'
 import { buildTrack } from './sim/track.ts'
 import { revInPlace, type DriveInput } from './sim/vehicle.ts'
+import { setupPwa } from './pwa.ts'
 import { formatTime, mountUi, type HudModel } from './ui.ts'
 
 const BEST_KEY = 'circuit-atlantique-best'
@@ -127,6 +128,23 @@ menuDist = track.length - 150
 const input = createInput(uiRoot)
 
 const world = await createWorld(canvas, race)
+if (import.meta.env.DEV) {
+  Object.assign(globalThis, {
+    __circuit: {
+      input,
+      race,
+      skipToRace() {
+        phase = 'racing'
+        race.clock = 0
+      },
+      heading: () => race.cars[0]!.heading,
+      speed: () => race.cars[0]!.speed * 3.6,
+      resetSteerStep() {
+        input.debug()
+      },
+    },
+  })
+}
 world.setQuality(quality)
 
 function resize(): void {
@@ -198,7 +216,7 @@ function step(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000)
   last = now
   const edges = input.consume()
-  const drive = input.read()
+  const drive = input.read(dt)
   if (edges.mute) {
     audio.start()
     audio.setMuted(!audio.muted)
@@ -404,4 +422,5 @@ ui.setModel = (data) => {
   if (data.phase === 'finished') playerNote()
 }
 
+setupPwa()
 requestAnimationFrame(frame)

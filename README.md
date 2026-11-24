@@ -28,7 +28,7 @@ npm run build
 npm run preview
 ```
 
-`npm run test:race` rejoue une course complète sans graphique, pour vérifier les tours, les points de contrôle et les collisions avec les murs.
+`npm run test:race` rejoue une course complète sans graphique. `npm run check` ajoute un passage Playwright (iPhone 14 et Pixel 7) sur le joystick, les pédales et l’absence de chevauchement avec le HUD.
 
 ## Commandes
 
@@ -65,9 +65,9 @@ npx vercel
 - Code du jeu : [MIT](LICENSE).
 - [Three.js](https://github.com/mrdoob/three.js) et [postprocessing](https://github.com/pmndrs/postprocessing) : MIT.
 - Polices [Rajdhani](https://fonts.google.com/specimen/Rajdhani) et [Orbitron](https://fonts.google.com/specimen/Orbitron), via Fontsource : SIL Open Font License 1.1.
-- HDRI **Venice Sunset** (2K), [Poly Haven](https://polyhaven.com/a/venice_sunset) : CC0. Greg Zaal.
+- HDRI **Venice Sunset** (1K), [Poly Haven](https://polyhaven.com/a/venice_sunset) : CC0. Greg Zaal. Sert d’éclairage image (IBL), aligné sur le soleil du ciel.
 - Textures PBR 1K, [Poly Haven](https://polyhaven.com) : CC0 — asphalte `asphalt_02` (Rob Tuytel), herbe `leafy_grass` (Charlotte Baglioni), sable `coast_sand_01` (Rob Tuytel), béton `concrete_wall_001` (Dimitrios Savva, traitement Rico Cilliers).
-- Voiture **Car Concept**, Eric Chadwick / Darmstadt Graphics Group, échantillon [glTF de Khronos](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept) : CC BY 4.0. Géométrie simplifiée et compressée en Meshopt pour le jeu. Les logos Khronos ne sont pas inclus.
+- Voitures : carrosseries procédurales (vernis clair, vitres, jantes). L’éclairage reprend l’approche de Cotonou City : IBL Poly Haven, ciel dégradé, LUT teal/orange.
 - Moteur, crissement et bips : synthétisés avec l’API Web Audio, sans fichier audio.
 - Palmiers, rails, tribunes et immeubles : géométrie du jeu.
 
