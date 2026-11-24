@@ -64,9 +64,10 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
     if (car.speed < 9) trpm = Math.max(trpm, 3000 + throttle * 2200)
     let tq = torqueMul(Math.min(Math.max(trpm, IDLE), 7600))
     if (drivenRpm > LIMIT && throttle > 0.4) tq *= 0.12
-    force += throttle * tq * GEAR_RATIOS[car.gear]! * 4900
+    const ratio = GEAR_RATIOS[car.gear] ?? GEAR_RATIOS[0]!
+    force += throttle * tq * ratio * 6400
   }
-  if (wantsReverse) force -= 4600 * brake
+  if (wantsReverse) force -= 5200 * brake
   else if (brake > 0.03 && car.speed > 0.2) force -= brake * 17500
 
   if (throttle < 0.08 && !wantsReverse && car.speed > 2.5) {
@@ -139,10 +140,10 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
 
   if (car.speed >= 0.4) {
     const wr = wheelRpm(car.speed, car.gear)
-    if (wr > 7450 && car.gear < GEAR_RATIOS.length - 1) car.gear += 1
-    else if (wr < 2900 && car.gear > 0) car.gear -= 1
-  } else if (car.speed >= 0 && car.gear > 1 && speedAbs < 4) {
-    car.gear = 1
+    if (wr > 7200 && car.gear < GEAR_RATIOS.length - 1) car.gear += 1
+    else if (wr < 3100 && car.gear > 0) car.gear -= 1
+  } else if (car.speed >= 0 && speedAbs < 3.5) {
+    car.gear = 0
   }
 }
 

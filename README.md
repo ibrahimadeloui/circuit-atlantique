@@ -34,9 +34,9 @@ npm run preview
 
 | Action | Clavier | Écran tactile |
 | --- | --- | --- |
-| Accélérer | Z, W ou ↑ | Pédale Accélérer |
-| Freiner | S ou ↓ | Pédale Freiner |
-| Diriger | Q, A, D ou ← → | Joystick gauche |
+| Accélérer | Z, W ou ↑ | Bouton Accélérer |
+| Freiner | S ou ↓ | Bouton Freiner |
+| Diriger | Q, A, D ou ← → | Boutons Gauche et Droite |
 | Reculer | Maintenir frein à l’arrêt | — |
 | Frein à main | Espace | Main |
 | Caméra poursuite / capot | C | Caméra |

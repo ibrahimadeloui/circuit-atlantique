@@ -119,7 +119,7 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
           <li><b>Échap</b> Pause</li>
           <li><b>M</b> Couper le son</li>
         </ul>
-        <p>Sur écran tactile : joystick à gauche, pédales à droite. Les points de contrôle empêchent de couper le circuit.</p>
+        <p>Sur écran tactile : Gauche et Droite en bas à gauche, Freiner et Accélérer en bas à droite. Les points de contrôle empêchent de couper le circuit.</p>
         <button type="button" class="primary" data-close-help>Fermer</button>
       </div>
     </section>
@@ -155,15 +155,20 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
         </div>
       </div>
     </section>
-    <div class="touch" data-touch>
-      <div class="stick" data-ctl="steer" aria-label="Direction">
-        <div class="nub" data-nub></div>
+    <div class="touch" data-touch hidden>
+      <div class="touch-pad">
+        <button type="button" data-ctl="left" aria-label="Gauche">Gauche</button>
+        <button type="button" data-ctl="right" aria-label="Droite">Droite</button>
       </div>
-      <div class="pedals">
-        <button type="button" data-ctl="handbrake">Main</button>
-        <button type="button" data-ctl="camera">Caméra</button>
-        <button type="button" class="pedal brake" data-ctl="brake">Freiner</button>
-        <button type="button" class="pedal gas" data-ctl="throttle">Accélérer</button>
+      <div class="touch-side">
+        <div class="touch-util">
+          <button type="button" data-ctl="handbrake" aria-label="Frein à main">Main</button>
+          <button type="button" data-ctl="camera" aria-label="Caméra">Caméra</button>
+        </div>
+        <div class="touch-pad">
+          <button type="button" class="brake" data-ctl="brake" aria-label="Freiner">Freiner</button>
+          <button type="button" class="gas" data-ctl="throttle" aria-label="Accélérer">Accélérer</button>
+        </div>
       </div>
     </div>
   `
@@ -249,7 +254,7 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
       q('[data-finish]').hidden = model.phase !== 'finished'
       q<HTMLButtonElement>('[data-mute]').textContent = model.muted ? 'Son coupé' : 'Son'
       const touch = root.querySelector<HTMLElement>('[data-touch]')!
-      const coarse = window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
+      const coarse = window.matchMedia('(pointer: coarse)').matches
       touch.hidden = !(coarse && (model.phase === 'racing' || model.phase === 'countdown'))
 
       if (model.phase === 'menu') {

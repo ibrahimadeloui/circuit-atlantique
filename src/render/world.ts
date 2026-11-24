@@ -691,11 +691,13 @@ function updateCars(race: Race, cars: CarVisual[]): void {
     const car = race.cars[i]!
     const view = cars[i]!
     view.root.position.set(car.x, car.roadY + 0.02, car.z)
-    const forward = new THREE.Vector3(Math.cos(car.heading), car.grade, Math.sin(car.heading)).normalize()
-    const right = new THREE.Vector3(Math.sin(car.heading), Math.sin(car.bank), -Math.cos(car.heading)).normalize()
-    const up = new THREE.Vector3().crossVectors(forward, right).normalize()
-    right.crossVectors(up, forward).normalize()
-    view.root.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(forward, up, right))
+    // Le nez du modèle est +X. Un repère (avant, haut, droite physique) est inversé :
+    // le quaternion extrait retournait la voiture dès que le cap quittait 0.
+    // rotateY(-cap) aligne +X sur (cos cap, sin cap) tout en gardant le toit vers le haut.
+    view.root.quaternion.identity()
+    view.root.rotateY(-car.heading)
+    view.root.rotateZ(car.grade)
+    view.root.rotateX(car.bank)
     const roll = THREE.MathUtils.clamp(-car.latAccel * 0.012, -0.08, 0.08)
     const pitch = THREE.MathUtils.clamp(-car.accel * 0.003, -0.04, 0.04)
     view.body.rotation.set(pitch, 0, roll)

@@ -16,7 +16,6 @@ export type Input = {
 export function createInput(root: HTMLElement): Input {
   const keys = new Set<string>()
   const edges = { camera: false, respawn: false, pause: false, start: false, mute: false }
-  const stick = { id: -1, dx: 0 }
   const holds = new Map<number, string>()
 
   const down = (event: KeyboardEvent) => {
@@ -38,43 +37,31 @@ export function createInput(root: HTMLElement): Input {
   window.addEventListener('blur', () => keys.clear())
 
   const layer = root.querySelector<HTMLElement>('[data-touch]')
-  const nub = root.querySelector<HTMLElement>('[data-nub]')
 
-  const pointerDown = (event: PointerEvent) => {
+  const controlOf = (event: PointerEvent) => {
     const target = event.target as HTMLElement | null
-    const ctl = target?.closest<HTMLElement>('[data-ctl]')?.dataset.ctl
-    if (!ctl) return
+    return target?.closest<HTMLElement>('[data-ctl]') ?? null
+  }
+  const pointerDown = (event: PointerEvent) => {
+    const button = controlOf(event)
+    const ctl = button?.dataset.ctl
+    if (!ctl || !button) return
     event.preventDefault()
     if (ctl === 'camera') {
       edges.camera = true
       return
     }
-    if (ctl === 'steer') {
-      stick.id = event.pointerId
-      stick.dx = 0
-    } else {
-      holds.set(event.pointerId, ctl)
+    holds.set(event.pointerId, ctl)
+    try {
+      button.setPointerCapture(event.pointerId)
+    } catch {
+      /* le pointeur n'est pas capturable */
     }
-    target?.setPointerCapture?.(event.pointerId)
-  }
-  const pointerMove = (event: PointerEvent) => {
-    if (event.pointerId !== stick.id) return
-    const origin = root.querySelector<HTMLElement>('[data-ctl="steer"]')
-    if (!origin) return
-    const rect = origin.getBoundingClientRect()
-    stick.dx = event.clientX - (rect.left + rect.width / 2)
-    if (nub) nub.style.transform = `translate(${Math.max(-42, Math.min(42, stick.dx))}px, 0)`
   }
   const pointerUp = (event: PointerEvent) => {
     holds.delete(event.pointerId)
-    if (event.pointerId === stick.id) {
-      stick.id = -1
-      stick.dx = 0
-      if (nub) nub.style.transform = 'translate(0, 0)'
-    }
   }
   layer?.addEventListener('pointerdown', pointerDown)
-  window.addEventListener('pointermove', pointerMove)
   window.addEventListener('pointerup', pointerUp)
   window.addEventListener('pointercancel', pointerUp)
 
@@ -88,11 +75,15 @@ export function createInput(root: HTMLElement): Input {
       const throttle = keys.has('arrowup') || keys.has('w') || keys.has('z') || held('throttle') ? 1 : 0
       const brake = keys.has('arrowdown') || keys.has('s') || held('brake') ? 1 : 0
       let steer = 0
-      if (keys.has('arrowleft') || keys.has('q') || keys.has('a')) steer -= 1
-      if (keys.has('arrowright') || keys.has('d')) steer += 1
-      steer += Math.max(-1, Math.min(1, stick.dx / 46))
+      if (keys.has('arrowleft') || keys.has('q') || keys.has('a') || held('left')) steer -= 1
+      if (keys.has('arrowright') || keys.has('d') || held('right')) steer += 1
       steer = Math.max(-1, Math.min(1, steer))
       const handbrake = keys.has(' ') || held('handbrake')
+      root.querySelectorAll<HTMLElement>('[data-ctl]').forEach((el) => {
+        const name = el.dataset.ctl
+        if (!name || name === 'camera') return
+        el.classList.toggle('pressed', held(name))
+      })
       return { throttle, brake, steer, handbrake }
     },
     consume: () => {

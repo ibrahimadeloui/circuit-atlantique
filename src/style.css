@@ -37,7 +37,7 @@ button { cursor: pointer; }
 }
 
 .hud, .menu, .overlay, .touch { pointer-events: none; }
-.panel, .speedo, .sheet, .menu, .touch button, .touch .stick, .ghost, .primary, .secondary {
+.panel, .sheet, .menu, .touch button, .ghost, .primary, .secondary {
   pointer-events: auto;
 }
 
@@ -111,6 +111,7 @@ button { cursor: pointer; }
   border-radius: 14px;
   background: rgba(8, 10, 14, 0.45);
   text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
 }
 .speed {
   font-family: Oswald, Rajdhani, sans-serif;
@@ -212,7 +213,7 @@ h2 { font-size: 2.2rem; }
 }
 .primary { background: var(--yellow); color: #1a1400; }
 .secondary { background: transparent; color: var(--ink); border: 1px solid rgba(244, 241, 234, 0.45); }
-.primary:focus-visible, .secondary:focus-visible, .ghost:focus-visible, .pedal:focus-visible {
+.primary:focus-visible, .secondary:focus-visible, .ghost:focus-visible, .touch button:focus-visible {
   outline: 2px solid var(--yellow);
   outline-offset: 2px;
 }
@@ -245,50 +246,54 @@ tr.me td { color: var(--yellow); }
 .touch {
   display: none;
   position: absolute;
-  inset: auto 0 0 0;
-  height: 46vh;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
   justify-content: space-between;
   align-items: flex-end;
-  padding: 0 16px calc(16px + env(safe-area-inset-bottom));
+  gap: 10px;
+  padding: 0 10px calc(8px + env(safe-area-inset-bottom));
 }
-.touch:not([hidden]) { display: flex; }
-.stick {
-  width: 128px;
-  height: 128px;
-  border-radius: 50%;
-  border: 2px solid rgba(244, 241, 234, 0.45);
-  background: rgba(8, 10, 14, 0.35);
-  position: relative;
-  touch-action: none;
+@media (pointer: coarse) {
+  .touch:not([hidden]) { display: flex; }
 }
-.nub {
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  background: rgba(242, 194, 0, 0.9);
-  position: absolute;
-  left: 37px;
-  top: 37px;
-}
-.pedals {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.touch-pad, .touch-util {
+  display: flex;
   gap: 8px;
-  width: min(46vw, 220px);
+  align-items: stretch;
 }
-.pedals button {
-  border: 0;
-  border-radius: 16px;
-  color: #140c00;
-  min-height: 54px;
-  touch-action: none;
+.touch-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.touch button {
+  border: 1px solid rgba(244, 241, 234, 0.38);
+  background: rgba(8, 10, 14, 0.62);
+  color: var(--ink);
+  border-radius: 12px;
+  min-width: 68px;
+  min-height: 46px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  touch-action: none;
+  user-select: none;
 }
-.pedal { min-height: 92px !important; font-size: 1.05rem; }
-.gas { background: var(--green); color: white; grid-column: 1 / -1; }
-.brake { background: var(--red); color: white; grid-column: 1 / -1; }
-.pedals button:not(.pedal) { background: rgba(244, 241, 234, 0.88); }
+.touch-util button {
+  min-height: 34px;
+  min-width: 58px;
+  padding: 4px 8px;
+  font-size: 0.72rem;
+  background: rgba(244, 241, 234, 0.9);
+  color: #140c00;
+}
+.touch button.gas { background: var(--green); color: white; border-color: transparent; min-width: 84px; }
+.touch button.brake { background: var(--red); color: white; border-color: transparent; min-width: 76px; }
+.touch button.pressed { filter: brightness(1.28); transform: translateY(1px); }
 
 @media (max-width: 760px) {
   .standings { width: min(46vw, 180px); padding: 8px; }
@@ -296,13 +301,19 @@ tr.me td { color: var(--yellow); }
   .minimap { width: 92px; height: 92px; }
   .times { min-width: 0; padding: 8px; }
   .times strong { font-size: 1rem; }
-  .speedo { left: 50%; right: auto; bottom: 47vh; transform: translateX(-50%); width: auto; text-align: center; }
-  .speed { font-size: 3.4rem; }
-  .rpm { justify-content: center; }
+  .speed { font-size: 3.2rem; }
   .menu { top: auto; bottom: 18px; transform: none; }
-  .hint { bottom: 50vh; }
 }
 
 @media (pointer: coarse) {
-  .speedo { bottom: 48vh; }
+  .speedo {
+    left: 50%;
+    right: auto;
+    bottom: calc(118px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    width: auto;
+    text-align: center;
+  }
+  .rpm { justify-content: center; }
+  .hint { bottom: calc(124px + env(safe-area-inset-bottom)); }
 }
