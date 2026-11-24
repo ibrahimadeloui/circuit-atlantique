@@ -1,4 +1,4 @@
-import '@fontsource/oswald/500.css'
+import '@fontsource/orbitron/700.css'
 import '@fontsource/rajdhani/600.css'
 import '@fontsource/rajdhani/700.css'
 import './style.css'

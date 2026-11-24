@@ -78,6 +78,10 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
         <button type="button" class="ghost" data-mute>Son</button>
       </div>
       <div class="speedo">
+        <svg class="gauge" viewBox="0 0 160 108" aria-hidden="true">
+          <path class="gauge-track" d="M22 92 A 58 58 0 1 1 138 92" />
+          <path data-arc class="gauge-value" d="M22 92 A 58 58 0 1 1 138 92" />
+        </svg>
         <div class="speed" data-speed>0</div>
         <div class="unit">km/h</div>
         <div class="gear" data-gear>N</div>
@@ -173,6 +177,10 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
     </div>
   `
 
+  const arc = root.querySelector<SVGPathElement>('[data-arc]')!
+  const arcLen = arc.getTotalLength()
+  arc.style.strokeDasharray = `${arcLen}`
+  arc.style.strokeDashoffset = `${arcLen}`
   const rpmHost = root.querySelector<HTMLElement>('[data-rpm]')!
   const segments = Array.from({ length: 16 }, (_, index) => {
     const seg = document.createElement('i')
@@ -265,6 +273,8 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
       setOrdinal(q('[data-pos]'), model.position)
       q('[data-lap]').textContent = `Tour ${model.lapText}`
       q('[data-speed]').textContent = String(Math.round(Math.abs(model.speed)))
+      const speedT = Math.max(0, Math.min(1, Math.abs(model.speed) / 280))
+      arc.style.strokeDashoffset = `${arcLen * (1 - speedT)}`
       q('[data-gear]').textContent = model.gear
       q('[data-current]').textContent = formatTime(model.currentLap)
       q('[data-best]').textContent = model.bestLap === null ? '—:—.—' : formatTime(model.bestLap)

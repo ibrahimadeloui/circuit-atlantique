@@ -1,17 +1,22 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js'
-import { Sky } from 'three/addons/objects/Sky.js'
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
-import { createCarVisual, type CarVisual } from './cars.ts'
+import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
 import {
-  createAsphalt,
+  BloomEffect,
+  BrightnessContrastEffect,
+  EffectComposer,
+  EffectPass,
+  HueSaturationEffect,
+  RenderPass,
+  SMAAEffect,
+  ToneMappingEffect,
+  ToneMappingMode,
+  VignetteEffect,
+} from 'postprocessing'
+import { createCarVisual, type CarVisual } from './cars.ts'
+import { loadSurfaces, type SurfaceSet } from './surfaces.ts'
+import {
   createChecker,
-  createGrass,
-  createGravel,
   createLabel,
   createWaterNormal,
 } from './textures.ts'
@@ -45,79 +50,107 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
 
   const renderer = new THREE.WebGLRenderer({
     canvas,
-    antialias: true,
+    antialias: false,
     powerPreference: 'high-performance',
   })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
   renderer.setSize(canvas.clientWidth || 1280, canvas.clientHeight || 720, false)
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
-  renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 1.08
+  renderer.toneMapping = THREE.NoToneMapping
   renderer.outputColorSpace = THREE.SRGBColorSpace
 
   const scene = new THREE.Scene()
-  scene.fog = new THREE.FogExp2(0xd3e2f0, 0.00155)
-  const camera = new THREE.PerspectiveCamera(66, 16 / 9, 0.15, 40000)
+  scene.fog = new THREE.Fog(0xff8a62, 140, 620)
+  const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 40000)
 
+  const [hdr, surfaces] = await Promise.all([
+    new RGBELoader().loadAsync('/assets/hdri/venice_sunset_2k.hdr'),
+    loadSurfaces(),
+  ])
+  hdr.mapping = THREE.EquirectangularReflectionMapping
   const pmrem = new THREE.PMREMGenerator(renderer)
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture
+  scene.environment = pmrem.fromEquirectangular(hdr).texture
+  scene.background = hdr
+  scene.environmentIntensity = 1.15
   pmrem.dispose()
 
-  const sun = new THREE.Vector3()
-  const sky = buildSky(scene, sun)
-  const hemi = new THREE.HemisphereLight(0xc5dcff, 0x6c8a48, 0.72)
+  const sun = new THREE.Vector3().setFromSphericalCoords(1, THREE.MathUtils.degToRad(81), THREE.MathUtils.degToRad(236))
+  const hemi = new THREE.HemisphereLight(0xffc4a2, 0x0d3c46, 0.62)
   scene.add(hemi)
-  const sunLight = new THREE.DirectionalLight(0xfff0d8, 3.15)
+  const sunLight = new THREE.DirectionalLight(0xffb15a, 4.4)
   sunLight.castShadow = true
-  sunLight.shadow.mapSize.set(2048, 2048)
-  sunLight.shadow.bias = -0.00025
-  sunLight.shadow.normalBias = 0.04
-  sunLight.shadow.camera.near = 8
-  sunLight.shadow.camera.far = 220
-  sunLight.shadow.camera.left = -48
-  sunLight.shadow.camera.right = 48
-  sunLight.shadow.camera.top = 48
-  sunLight.shadow.camera.bottom = -48
+  sunLight.shadow.mapSize.set(1024, 1024)
+  sunLight.shadow.bias = -0.0004
+  sunLight.shadow.normalBias = 0.035
+  sunLight.shadow.camera.near = 4
+  sunLight.shadow.camera.far = 90
+  sunLight.shadow.camera.left = -26
+  sunLight.shadow.camera.right = 26
+  sunLight.shadow.camera.top = 26
+  sunLight.shadow.camera.bottom = -26
   scene.add(sunLight)
   scene.add(sunLight.target)
 
-  buildGround(scene, track)
-  buildTrackSurface(scene, track)
-  buildWalls(scene, track)
+  buildGround(scene, track, surfaces)
+  buildTrackSurface(scene, track, surfaces)
+  buildWalls(scene, track, surfaces)
   buildMarkings(scene, track)
   buildGantry(scene, track)
-  buildProps(scene, track)
+  buildProps(scene, track, surfaces)
+  buildRails(scene, track)
 
-  const cars = race.cars.map((car) => {
-    const visual = createCarVisual(car.color, car.accent, car.number)
-    scene.add(visual.root)
-    return visual
-  })
+  const cars = await Promise.all(
+    race.cars.map(async (car) => {
+      const visual = await createCarVisual(car.color, car.accent, car.number)
+      scene.add(visual.root)
+      return visual
+    }),
+  )
   const dust = buildDust(scene)
+  const sparks = buildSparks(scene)
   const waterNormal = scene.getObjectByName('water') as THREE.Mesh | undefined
 
   const lights = gantryLights(scene)
   const camPos = new THREE.Vector3(0, 8, 12)
   const look = new THREE.Vector3()
   let shakeLeft = 0
-  const composer = new EffectComposer(renderer)
+  let camTime = 0
+  const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType })
+  const bloom = new BloomEffect({
+    intensity: 0.4,
+    luminanceThreshold: 0.86,
+    luminanceSmoothing: 0.2,
+    mipmapBlur: true,
+    radius: 0.65,
+  })
+  const bloomPass = new EffectPass(camera, bloom)
+  const gradePass = new EffectPass(
+    camera,
+    new SMAAEffect(),
+    new HueSaturationEffect({ saturation: 0.16 }),
+    new BrightnessContrastEffect({ brightness: 0.03, contrast: 0.1 }),
+    new VignetteEffect({ offset: 0.28, darkness: 0.52 }),
+    new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC }),
+  )
   composer.addPass(new RenderPass(scene, camera))
-  const bloom = new UnrealBloomPass(new THREE.Vector2(1024, 576), 0.22, 0.42, 0.86)
-  composer.addPass(bloom)
-  composer.addPass(new OutputPass())
+  composer.addPass(bloomPass)
+  composer.addPass(gradePass)
   let quality: Quality = 'moyen'
+  let mobileSlow = 0
+  let postEnabled = true
+  const mobile = window.matchMedia('(pointer: coarse)').matches
   const skids = createSkids(scene)
   const applyQuality = (next: Quality) => {
     quality = next
-    const size = next === 'eleve' ? 2048 : next === 'moyen' ? 1024 : 512
+    const size = next === 'eleve' ? 2048 : 1024
     sunLight.shadow.mapSize.set(size, size)
     sunLight.shadow.map?.dispose()
     sunLight.shadow.map = null
-    sunLight.castShadow = next !== 'bas'
-    bloom.enabled = next !== 'bas'
-    bloom.strength = next === 'eleve' ? 0.34 : 0.18
-    bloom.radius = next === 'eleve' ? 0.45 : 0.32
+    const fancy = next !== 'bas' && postEnabled
+    sunLight.castShadow = fancy
+    bloomPass.enabled = fancy
+    bloom.intensity = next === 'eleve' ? 0.48 : 0.34
   }
   applyQuality('moyen')
 
@@ -126,14 +159,14 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
     setSize: (width, height, pixelRatio) => {
       renderer.setPixelRatio(pixelRatio)
       renderer.setSize(width, height, false)
-      composer.setPixelRatio(pixelRatio)
-      composer.setSize(width, height)
+      composer.setSize(width, height, false)
       camera.aspect = width / Math.max(1, height)
       camera.updateProjectionMatrix()
     },
     update: (race, view, dt) => {
       updateCars(race, cars)
       updateDust(race, dust, dt, quality)
+      updateSparks(race, sparks, dt)
       updateSkids(track, race, skids)
       updateLights(lights, view, race.clock)
       if (waterNormal) {
@@ -146,14 +179,25 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
       const player = race.cars[0]!
       shakeLeft = Math.max(shakeLeft, Math.min(1.2, player.impact * 0.08))
       const focus = focusPoint(track, race, view)
-      sunLight.position.set(focus.x + sun.x * 90, Math.max(28, sun.y * 90), focus.z + sun.z * 90)
-      sunLight.target.position.set(focus.x, 0, focus.z)
+      sunLight.position.set(focus.x + sun.x * 48, Math.max(10, sun.y * 48), focus.z + sun.z * 48)
+      sunLight.target.position.set(focus.x, focus.y, focus.z)
       sunLight.target.updateMatrixWorld()
-      updateCamera(camera, camPos, look, track, race, view, dt, shakeLeft)
+      camTime += dt
+      updateCamera(camera, camPos, look, track, race, view, dt, shakeLeft, camTime)
       shakeLeft = Math.max(0, shakeLeft - dt * 1.6)
-      sky.position.copy(camera.position)
-      if (quality === 'bas') renderer.render(scene, camera)
-      else composer.render()
+      if (mobile && dt > 1 / 50) mobileSlow += 1
+      else mobileSlow = Math.max(0, mobileSlow - 1)
+      if (mobile && mobileSlow > 24 && postEnabled) {
+        postEnabled = false
+        applyQuality(quality)
+      }
+      if (postEnabled && quality !== 'bas') composer.render()
+      else {
+        renderer.toneMapping = THREE.ACESFilmicToneMapping
+        renderer.toneMappingExposure = 1.2
+        renderer.render(scene, camera)
+        renderer.toneMapping = THREE.NoToneMapping
+      }
     },
     setQuality: (next) => {
       applyQuality(next)
@@ -163,39 +207,22 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   return world
 }
 
-function buildSky(scene: THREE.Scene, sun: THREE.Vector3): THREE.Object3D {
-  const sky = new Sky()
-  sky.scale.setScalar(15000)
-  const uniforms = sky.material.uniforms
-  uniforms.turbidity!.value = 5.5
-  uniforms.rayleigh!.value = 1.35
-  uniforms.mieCoefficient!.value = 0.004
-  uniforms.mieDirectionalG!.value = 0.82
-  const phi = THREE.MathUtils.degToRad(90 - 28)
-  const theta = THREE.MathUtils.degToRad(148)
-  sun.setFromSphericalCoords(1, phi, theta)
-  uniforms.sunPosition!.value.copy(sun)
-  scene.add(sky)
-  return sky
-}
-
-function buildGround(scene: THREE.Scene, track: Track): void {
+function buildGround(scene: THREE.Scene, track: Track, surfaces: SurfaceSet): void {
   const { minX, maxX, minZ, maxZ } = track.bounds
   const cx = (minX + maxX) / 2
   const cz = (minZ + maxZ) / 2
   const span = Math.max(maxX - minX, maxZ - minZ)
-  const grassMaps = createGrass()
-  grassMaps.map.repeat.set(span / 18, span / 18)
-  grassMaps.normal.repeat.set(span / 18, span / 18)
-  const grass = new THREE.Mesh(
-    new THREE.CircleGeometry(span * 0.72 + 120, 64),
-    new THREE.MeshStandardMaterial({
-      map: grassMaps.map,
-      normalMap: grassMaps.normal,
-      roughness: 0.96,
-      metalness: 0,
-    }),
-  )
+  const grassMat = surfaces.grass.clone()
+  grassMat.map = surfaces.grass.map?.clone() ?? null
+  grassMat.normalMap = surfaces.grass.normalMap?.clone() ?? null
+  grassMat.roughnessMap = surfaces.grass.roughnessMap?.clone() ?? null
+  for (const tex of [grassMat.map, grassMat.normalMap, grassMat.roughnessMap]) {
+    if (!tex) continue
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+    tex.repeat.set(span / 14, span / 14)
+    tex.needsUpdate = true
+  }
+  const grass = new THREE.Mesh(new THREE.CircleGeometry(span * 0.72 + 120, 64), grassMat)
   grass.rotation.x = -Math.PI / 2
   grass.position.set(cx, 0, cz)
   grass.receiveShadow = true
@@ -204,10 +231,13 @@ function buildGround(scene: THREE.Scene, track: Track): void {
   const waterNormal = createWaterNormal()
   const water = new THREE.Mesh(
     new THREE.CircleGeometry(span + 900, 48),
-    new THREE.MeshStandardMaterial({
-      color: 0x1c6f86,
-      roughness: 0.12,
-      metalness: 0.25,
+    new THREE.MeshPhysicalMaterial({
+      color: 0x083f4c,
+      roughness: 0.07,
+      metalness: 0.68,
+      clearcoat: 1,
+      clearcoatRoughness: 0.08,
+      envMapIntensity: 1.45,
       normalMap: waterNormal,
     }),
   )
@@ -218,56 +248,33 @@ function buildGround(scene: THREE.Scene, track: Track): void {
   scene.add(water)
 }
 
-function buildTrackSurface(scene: THREE.Scene, track: Track): void {
-  const asphalt = createAsphalt()
-  const gravel = createGravel()
-  scene.add(coloredMesh(flatRibbon(track, -track.halfWidth, track.halfWidth, 0.05, 0.05, 7), asphaltMaterial(asphalt)))
-  scene.add(
-    coloredMesh(
-      flatRibbon(track, track.halfWidth + 0.5, track.wall - 0.05, 0.03, 0.03, 6),
-      gravelMaterial(gravel),
-    ),
-  )
-  scene.add(
-    coloredMesh(
-      flatRibbon(track, -(track.wall - 0.05), -(track.halfWidth + 0.5), 0.03, 0.03, 6),
-      gravelMaterial(gravel),
-    ),
-  )
-  const curbMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.72, metalness: 0.02, side: THREE.DoubleSide })
+function buildTrackSurface(scene: THREE.Scene, track: Track, surfaces: SurfaceSet): void {
+  const asphalt = surfaces.asphalt.clone()
+  asphalt.side = THREE.DoubleSide
+  const sand = surfaces.sand.clone()
+  sand.side = THREE.DoubleSide
+  scene.add(coloredMesh(flatRibbon(track, -track.halfWidth, track.halfWidth, 0.05, 0.05, 7), asphalt))
+  scene.add(coloredMesh(flatRibbon(track, track.halfWidth + 0.5, track.wall - 0.05, 0.03, 0.03, 6), sand))
+  scene.add(coloredMesh(flatRibbon(track, -(track.wall - 0.05), -(track.halfWidth + 0.5), 0.03, 0.03, 6), sand))
+  const curbMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.04, side: THREE.DoubleSide })
   scene.add(coloredMesh(curbRibbon(track, 1), curbMat))
   scene.add(coloredMesh(curbRibbon(track, -1), curbMat))
 }
 
-function asphaltMaterial(maps: { map: THREE.CanvasTexture; normal: THREE.CanvasTexture }): THREE.MeshStandardMaterial {
-  const material = new THREE.MeshStandardMaterial({
-    map: maps.map,
-    normalMap: maps.normal,
-    roughness: 0.9,
-    metalness: 0.04,
-  })
-  material.side = THREE.DoubleSide
-  return material
-}
-
-function gravelMaterial(maps: { map: THREE.CanvasTexture; normal: THREE.CanvasTexture }): THREE.MeshStandardMaterial {
-  const material = new THREE.MeshStandardMaterial({
-    map: maps.map,
-    normalMap: maps.normal,
-    roughness: 0.95,
-    metalness: 0,
-  })
-  material.side = THREE.DoubleSide
-  return material
-}
-
-function buildWalls(scene: THREE.Scene, track: Track): void {
-  const concrete = new THREE.MeshStandardMaterial({ color: 0xb7b4ac, roughness: 0.9, metalness: 0.02 })
-  const stripe = new THREE.MeshStandardMaterial({ color: 0xf0c419, roughness: 0.55, metalness: 0.08 })
+function buildWalls(scene: THREE.Scene, track: Track, surfaces: SurfaceSet): void {
+  const concrete = surfaces.concrete.clone()
+  const stripe = new THREE.MeshStandardMaterial({ color: 0xff7a3c, roughness: 0.45, metalness: 0.12, emissive: 0x5a2208, emissiveIntensity: 0.18 })
   const { positions, normals } = wallGeometry(track)
   const geo = new THREE.BufferGeometry()
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  const pos = new THREE.Float32BufferAttribute(positions, 3)
+  geo.setAttribute('position', pos)
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+  const uv = new Float32Array(pos.count * 2)
+  for (let i = 0; i < pos.count; i++) {
+    uv[i * 2] = pos.getX(i) * 0.18
+    uv[i * 2 + 1] = pos.getY(i) * 0.45 + pos.getZ(i) * 0.04
+  }
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
   const mesh = new THREE.Mesh(geo, concrete)
   mesh.castShadow = true
   mesh.receiveShadow = true
@@ -374,7 +381,7 @@ function buildGantry(scene: THREE.Scene, track: Track): void {
   group.add(beam)
   const banner = new THREE.Mesh(
     new THREE.PlaneGeometry(7.2, 1.15),
-    new THREE.MeshStandardMaterial({ map: createLabel('ATLANTIQUE', '#102016', '#f2c200'), roughness: 0.6 }),
+    new THREE.MeshStandardMaterial({ map: createLabel('ATLANTIQUE', '#10241f', '#ffb15a'), roughness: 0.55, emissive: 0x3a2010, emissiveIntensity: 0.25 }),
   )
   banner.position.set(-0.35, 6.15, 0)
   banner.rotation.y = -Math.PI / 2
@@ -436,18 +443,48 @@ function updateLights(
   lights.green.emissiveIntensity = greenOn ? 2.8 : 0.02
 }
 
-function buildProps(scene: THREE.Scene, track: Track): void {
+function buildRails(scene: THREE.Scene, track: Track): void {
+  const metal = new THREE.MeshStandardMaterial({ color: 0xe7edf2, metalness: 0.82, roughness: 0.28 })
+  const geo = new THREE.BoxGeometry(5.4, 0.07, 0.07)
+  const count = Math.ceil(track.length / 5) * 2 * 2
+  const mesh = new THREE.InstancedMesh(geo, metal, count)
+  const dummy = new THREE.Object3D()
+  let n = 0
+  for (let dist = 0; dist < track.length; dist += 5) {
+    const s = sampleAlong(track, dist)
+    for (const side of [1, -1]) {
+      for (const lift of [0.42, 0.78]) {
+        const p = roadPoint(s, side * (track.wall + 0.22), lift)
+        dummy.position.set(p.x, p.y, p.z)
+        dummy.rotation.set(0, -Math.atan2(s.tz, s.tx), 0)
+        dummy.updateMatrix()
+        mesh.setMatrixAt(n, dummy.matrix)
+        n += 1
+      }
+    }
+  }
+  mesh.count = n
+  mesh.castShadow = false
+  scene.add(mesh)
+}
+
+function buildProps(scene: THREE.Scene, track: Track, surfaces: SurfaceSet): void {
   const palms = palmMatrices(track)
   const trunkGeo = new THREE.CylinderGeometry(0.18, 0.28, 4.6, 6)
   trunkGeo.translate(0, 2.3, 0)
-  const crownA = new THREE.ConeGeometry(1.55, 2.1, 6)
-  crownA.translate(0, 5.1, 0)
-  const crownB = new THREE.ConeGeometry(1.05, 1.5, 5)
-  crownB.translate(0, 5.7, 0)
-  const crown = mergeGeometries([crownA, crownB])
+  const fronds = []
+  for (let i = 0; i < 7; i++) {
+    const frond = new THREE.ConeGeometry(0.22, 2.6, 4)
+    frond.translate(0, 1.15, 0)
+    frond.rotateZ(1.05)
+    frond.rotateY((i / 7) * Math.PI * 2)
+    fronds.push(frond)
+  }
+  const crown = mergeGeometries(fronds)
+  crown?.translate(0, 4.55, 0)
   if (!crown) return
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6d4c32, roughness: 0.9 })
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x1f7a38, roughness: 0.75 })
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8a5a32, roughness: 0.86 })
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x1f9a45, roughness: 0.62, emissive: 0x0c3a18, emissiveIntensity: 0.12 })
   const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, palms.length)
   const leaves = new THREE.InstancedMesh(crown, leafMat, palms.length)
   palms.forEach((m, i) => {
@@ -456,9 +493,17 @@ function buildProps(scene: THREE.Scene, track: Track): void {
   })
   scene.add(trunks, leaves)
 
-  const concrete = new THREE.MeshStandardMaterial({ color: 0xd8d2c6, roughness: 0.85 })
-  const glass = new THREE.MeshStandardMaterial({ color: 0x8fb4c8, roughness: 0.15, metalness: 0.4, transparent: true, opacity: 0.75 })
-  const doorColors = [0x008751, 0xd10f2b, 0xf2c200, 0x1d4e89, 0xefefef]
+  const concrete = surfaces.concrete
+  const glass = new THREE.MeshPhysicalMaterial({
+    color: 0xffc2a8,
+    roughness: 0.08,
+    metalness: 0.15,
+    transmission: 0.2,
+    transparent: true,
+    opacity: 0.82,
+    envMapIntensity: 1.3,
+  })
+  const doorColors = [0xff7a3c, 0x2ad6c8, 0xffd27a, 0x1d4e89, 0xfff4ea]
   for (let i = 0; i < 5; i++) {
     const s = sampleAlong(track, 28 + i * 16)
     const lat = track.wall + 7
@@ -525,7 +570,7 @@ function buildProps(scene: THREE.Scene, track: Track): void {
     const board = new THREE.Mesh(
       new THREE.PlaneGeometry(6.4, 1.5),
       new THREE.MeshStandardMaterial({
-        map: createLabel(text, i % 2 ? '#f6f3ea' : '#102016', i % 2 ? '#008751' : '#f2c200'),
+        map: createLabel(text, i % 2 ? '#1a1210' : '#10241f', i % 2 ? '#2ad6c8' : '#ff7a3c'),
         roughness: 0.7,
       }),
     )
@@ -541,7 +586,7 @@ function buildProps(scene: THREE.Scene, track: Track): void {
   for (let i = 0; i < 7; i++) {
     const s = sampleAlong(track, 50 + i * 28)
     const height = 8 + (i % 4) * 3.2
-    const block = makeBuilding(11 + (i % 2) * 3, height, 8, i % 2 ? 0xe6d8c6 : 0xb87445, windows)
+    const block = makeBuilding(11 + (i % 2) * 3, height, 8, i % 2 ? 0xf0c2a0 : 0xc45a3a, windows)
     const lat = track.wall + 18 + (i % 3) * 4
     block.position.set(s.x - s.rx * lat, s.y, s.z - s.rz * lat)
     block.rotation.y = -Math.atan2(s.tz, s.tx)
@@ -605,11 +650,11 @@ function palmMatrices(track: Track): THREE.Matrix4[] {
     dummy.updateMatrix()
     matrices.push(dummy.matrix.clone())
   }
-  for (let dist = 0; dist < track.length; dist += 17) {
+  for (let dist = 0; dist < track.length; dist += 11) {
     const n = hash(dist)
-    if (n < 0.28) continue
+    if (n < 0.22) continue
     const s = sampleAlong(track, dist)
-    const extra = 4 + hash(dist + 3) * 12
+    const extra = 1.7 + hash(dist + 3) * 5.5
     const x = s.x + s.rx * (track.wall + extra)
     const z = s.z + s.rz * (track.wall + extra)
     if (Math.abs(projectLat(track, x, z)) < track.wall + 3) continue
@@ -643,6 +688,44 @@ function seatTexture(): THREE.CanvasTexture {
   tex.wrapS = THREE.RepeatWrapping
   tex.repeat.set(8, 1)
   return tex
+}
+
+function buildSparks(scene: THREE.Scene): { points: THREE.Points; life: number[]; vel: number[] } {
+  const count = 48
+  const positions = new Float32Array(count * 3)
+  const geo = new THREE.BufferGeometry()
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  const points = new THREE.Points(
+    geo,
+    new THREE.PointsMaterial({ color: 0xffb15a, size: 0.28, transparent: true, opacity: 0.9, depthWrite: false }),
+  )
+  scene.add(points)
+  return { points, life: Array.from({ length: count }, () => 0), vel: Array.from({ length: count * 3 }, () => 0) }
+}
+
+function updateSparks(race: Race, sparks: { points: THREE.Points; life: number[]; vel: number[] }, dt: number): void {
+  const attr = sparks.points.geometry.getAttribute('position') as THREE.BufferAttribute
+  const player = race.cars[0]!
+  for (let i = 0; i < sparks.life.length; i++) {
+    if (sparks.life[i]! > 0) {
+      sparks.life[i] = sparks.life[i]! - dt
+      attr.setX(i, attr.getX(i) + sparks.vel[i * 3]! * dt)
+      attr.setY(i, attr.getY(i) + sparks.vel[i * 3 + 1]! * dt)
+      attr.setZ(i, attr.getZ(i) + sparks.vel[i * 3 + 2]! * dt)
+      sparks.vel[i * 3 + 1]! -= dt * 6
+    } else if (player.impact > 1.4 || (player.drifting && player.speed > 12 && i % 3 === 0)) {
+      const fx = Math.cos(player.heading)
+      const fz = Math.sin(player.heading)
+      attr.setXYZ(i, player.x - fx * 1.2, player.roadY + 0.25, player.z - fz * 1.2)
+      sparks.vel[i * 3] = -fx * 2 + (Math.random() - 0.5) * 6
+      sparks.vel[i * 3 + 1] = 2 + Math.random() * 4
+      sparks.vel[i * 3 + 2] = -fz * 2 + (Math.random() - 0.5) * 6
+      sparks.life[i] = 0.35
+    } else {
+      attr.setY(i, -20)
+    }
+  }
+  attr.needsUpdate = true
 }
 
 function buildDust(scene: THREE.Scene): { points: THREE.Points; life: number[]; vel: number[] } {
@@ -702,8 +785,8 @@ function updateCars(race: Race, cars: CarVisual[]): void {
     const pitch = THREE.MathUtils.clamp(-car.accel * 0.003, -0.04, 0.04)
     view.body.rotation.set(pitch, 0, roll)
     const spin = car.wheelSpin % (Math.PI * 2)
-    for (const wheel of view.spins) wheel.rotation.z = spin
-    for (const steer of view.steers) steer.rotation.y = -car.steer * 0.48
+    for (const wheel of view.spins) wheel.rotation.x = spin
+    for (const steer of view.steers) steer.rotation.y = -car.steer * 0.42
     view.tail.emissiveIntensity = car.brake > 0.12 ? 3 : 0.4
   }
 }
@@ -726,6 +809,7 @@ function updateCamera(
   view: ViewState,
   dt: number,
   shake: number,
+  time: number,
 ): void {
   const desired = new THREE.Vector3()
   const lookTarget = new THREE.Vector3()
@@ -742,14 +826,15 @@ function updateCamera(
     const rx = Math.sin(car.heading)
     const rz = -Math.cos(car.heading)
     const carY = car.roadY
+    const pace = THREE.MathUtils.clamp(Math.abs(car.speed) / 62, 0, 1)
     if (view.camera === 'hood') {
-      desired.set(car.x + fx * 1.45 + rx * -0.22, carY + 0.98, car.z + fz * 1.45 + rz * -0.22)
-      lookTarget.set(car.x + fx * 14, carY + 0.72, car.z + fz * 14)
-      camera.fov = 74
+      desired.set(car.x + fx * 0.9 + rx * -0.34, carY + 1.62, car.z + fz * 0.9 + rz * -0.34)
+      lookTarget.set(car.x + fx * 22, carY + 0.55, car.z + fz * 22)
+      camera.fov = 66 + pace * 12
     } else {
-      desired.set(car.x - fx * 6.4 + rx * 0.15, carY + 2.45, car.z - fz * 6.4 + rz * 0.15)
-      lookTarget.set(car.x + fx * 0.2, carY + 0.78, car.z + fz * 0.2)
-      camera.fov = 58
+      desired.set(car.x - fx * 6.6 + rx * 0.15, carY + 2.35, car.z - fz * 6.6 + rz * 0.15)
+      lookTarget.set(car.x + fx * 4.5, carY + 0.9, car.z + fz * 4.5)
+      camera.fov = 60 + pace * 15
     }
   }
   const chase = view.camera !== 'hood'
@@ -758,8 +843,10 @@ function updateCamera(
   else camPos.lerp(desired, view.phase === 'menu' ? Math.min(1, k) : k)
   if (look.distanceTo(lookTarget) > 6) look.copy(lookTarget)
   else look.lerp(lookTarget, 1 - Math.exp(-(chase ? 14 : 16) * dt))
-  const sx = (hash(shake * 10) - 0.5) * shake
-  const sy = (hash(shake * 20) - 0.5) * shake * 0.6
+  const speed = race.cars[0] && view.phase !== 'menu' ? Math.abs(race.cars[0].speed) : 0
+  const buzz = Math.min(0.07, speed * 0.0007 + Math.abs(race.cars[0]?.slip ?? 0) * 0.003)
+  const sx = (hash(shake * 10) - 0.5) * shake + Math.sin(time * 43) * buzz
+  const sy = (hash(shake * 20) - 0.5) * shake * 0.6 + Math.sin(time * 57) * buzz * 0.55
   camera.position.set(camPos.x + sx, camPos.y + sy, camPos.z)
   camera.up.set(0, 1, 0)
   camera.lookAt(look)
@@ -813,8 +900,8 @@ function curbRibbon(track: Track, side: number): THREE.BufferGeometry {
   for (let i = 0; i <= n; i++) {
     const s = samples[i % n]!
     const dist = i === n ? track.length : s.dist
-    const red = Math.floor(dist / 1.55) % 2 === 0
-    const c: [number, number, number] = red ? [0.78, 0.08, 0.1] : [0.93, 0.93, 0.9]
+    const warm = Math.floor(dist / 1.55) % 2 === 0
+    const c: [number, number, number] = warm ? [1, 0.48, 0.18] : [0.18, 0.86, 0.8]
     const inner = roadPoint(s, latA, 0.03)
     const outer = roadPoint(s, latB, 0.09)
     positions.push(inner.x, inner.y, inner.z, outer.x, outer.y, outer.z)
@@ -911,7 +998,7 @@ function embankment(track: Track, side: number): THREE.Mesh {
   geo.computeVertexNormals()
   const mesh = new THREE.Mesh(
     geo,
-    new THREE.MeshStandardMaterial({ color: 0x6d8a45, roughness: 0.95, side: THREE.DoubleSide }),
+    new THREE.MeshStandardMaterial({ color: 0xd7b07a, roughness: 0.95, side: THREE.DoubleSide }),
   )
   mesh.receiveShadow = true
   return mesh

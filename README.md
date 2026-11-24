@@ -63,20 +63,23 @@ npx vercel
 ## Licences
 
 - Code du jeu : [MIT](LICENSE).
-- [Three.js](https://github.com/mrdoob/three.js) (rendu, ciel Preetham, environnement de réflexion) : MIT.
-- Polices [Oswald](https://fonts.google.com/specimen/Oswald) et [Rajdhani](https://fonts.google.com/specimen/Rajdhani), via Fontsource : SIL Open Font License 1.1.
-- Piste, voitures, végétation, bâtiments et textures : générés dans le code, sans asset externe payant.
+- [Three.js](https://github.com/mrdoob/three.js) et [postprocessing](https://github.com/pmndrs/postprocessing) : MIT.
+- Polices [Rajdhani](https://fonts.google.com/specimen/Rajdhani) et [Orbitron](https://fonts.google.com/specimen/Orbitron), via Fontsource : SIL Open Font License 1.1.
+- HDRI **Venice Sunset** (2K), [Poly Haven](https://polyhaven.com/a/venice_sunset) : CC0. Greg Zaal.
+- Textures PBR 1K, [Poly Haven](https://polyhaven.com) : CC0 — asphalte `asphalt_02` (Rob Tuytel), herbe `leafy_grass` (Charlotte Baglioni), sable `coast_sand_01` (Rob Tuytel), béton `concrete_wall_001` (Dimitrios Savva, traitement Rico Cilliers).
+- Voiture **Car Concept**, Eric Chadwick / Darmstadt Graphics Group, échantillon [glTF de Khronos](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CarConcept) : CC BY 4.0. Géométrie simplifiée et compressée en Meshopt pour le jeu. Les logos Khronos ne sont pas inclus.
 - Moteur, crissement et bips : synthétisés avec l’API Web Audio, sans fichier audio.
+- Palmiers, rails, tribunes et immeubles : géométrie du jeu.
 
 ## Graphismes
 
-Le menu propose trois niveaux : **Bas**, **Moyen** et **Élevé** (ombres, bloom, résolution). Le choix est mémorisé dans le navigateur.
+Heure dorée sur le littoral : ciel HDRI, mer turquoise, asphalte bleu-gris, accents orange et turquoise. Le menu propose trois niveaux : **Bas**, **Moyen** et **Élevé** (ombres, bloom, résolution). Le choix est mémorisé. Sur mobile, bloom et ombres se coupent si l’image passe sous 50 images/s.
 
 ## Limites connues
 
 - Les pentes et le dévers restent doux : ce n’est pas un circuit de montagne.
 - Le modèle de pneu est une formule simplifiée (angle de dérive, transfert de masse, sous-virage et survirage). Ce n’est pas un Pacejka complet à quatre roues.
-- Voitures, tribunes et immeubles sont procéduraux. Les arbres restent simplifiés.
+- Les palmiers et les immeubles restent procéduraux. La voiture est un modèle glTF partagé, recoloré par pilote.
 - Quatre pilotes. Pas de dégâts persistants, de pluie, ni d’arrêts aux stands.
 - La fumée de pneu est faite de points, plus lisible en qualité Moyen ou Élevé grâce au bloom.
 - L’herbe freine fortement ; un long hors-piste peut faire perdre plusieurs secondes.
