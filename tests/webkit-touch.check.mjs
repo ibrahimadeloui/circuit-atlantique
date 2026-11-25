@@ -49,7 +49,7 @@ function startServer() {
 
 async function ready(page) {
   if (!LIVE) {
-    await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v9', null, { timeout: 90000 })
+    await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v10', null, { timeout: 90000 })
     return
   }
   for (let attempt = 0; attempt < 8; attempt += 1) {
@@ -58,7 +58,7 @@ async function ready(page) {
     while (Date.now() - start < 20000) {
       try {
         const build = await page.evaluate(() => window.__game && window.__game.build)
-        stable = build === 'touch-v9' ? stable + 1 : 0
+        stable = build === 'touch-v10' ? stable + 1 : 0
         if (stable >= 3) return
       } catch {
         stable = 0

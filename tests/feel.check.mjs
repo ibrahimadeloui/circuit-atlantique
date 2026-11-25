@@ -50,14 +50,14 @@ function startServer() {
 
 async function ready(page) {
   if (!LIVE) {
-    await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v9', null, { timeout: 90000 })
+    await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v10', null, { timeout: 90000 })
     return
   }
   for (let attempt = 0; attempt < 6; attempt += 1) {
     try {
-      await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v9', null, { timeout: 30000 })
+      await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v10', null, { timeout: 30000 })
       await page.waitForTimeout(1500)
-      if ((await page.evaluate(() => window.__game && window.__game.build)) === 'touch-v9') return
+      if ((await page.evaluate(() => window.__game && window.__game.build)) === 'touch-v10') return
     } catch {
       /* rechargement du service worker */
     }

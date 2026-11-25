@@ -53,10 +53,10 @@ async function boot(page) {
   if (LIVE) {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       try {
-        await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v9', null, { timeout: 30000 })
+        await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v10', null, { timeout: 30000 })
         await page.waitForTimeout(2000)
         const build = await page.evaluate(() => window.__game && window.__game.build)
-        if (build === 'touch-v9') break
+        if (build === 'touch-v10') break
       } catch {
         /* rechargement du service worker */
       }

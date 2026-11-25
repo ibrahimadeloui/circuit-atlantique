@@ -302,7 +302,7 @@ function step(now: number): void {
   adaptQuality(dt)
 }
 
-const BUILD = 'touch-v9'
+const BUILD = 'touch-v10'
 
 function publishGameState(): void {
   const player = race.cars[0]!
