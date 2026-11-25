@@ -58,6 +58,10 @@ button { cursor: pointer; }
 .panel, .sheet, .menu, .touch button, .joystick, .ghost, .primary, .secondary {
   pointer-events: auto;
 }
+.hud, .hud .panel, .hud .speedo, .hud .minimap, .standings, .times, .speedo {
+  pointer-events: none;
+}
+.hud button, .times button { pointer-events: auto; }
 
 .panel {
   position: absolute;
@@ -121,26 +125,27 @@ button { cursor: pointer; }
 
 .speedo {
   position: absolute;
-  right: 18px;
-  bottom: 18px;
-  width: 168px;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 132px;
   text-align: center;
-  padding: 8px 10px 8px;
-  border-radius: 18px;
-  background: var(--panel);
-  border: 1px solid rgba(255, 248, 242, 0.14);
-  backdrop-filter: blur(12px);
+  padding: 4px 8px 6px;
+  border-radius: 16px;
+  background: rgba(8, 10, 16, 0.42);
+  border: 1px solid rgba(255, 248, 242, 0.16);
+  backdrop-filter: blur(10px);
   pointer-events: none;
 }
-.gauge { width: 100%; height: 78px; display: block; }
+.gauge { width: 100%; height: 42px; display: block; }
 .gauge-track, .gauge-value { fill: none; stroke-width: 8; stroke-linecap: round; }
 .gauge-track { stroke: rgba(255, 248, 242, 0.16); }
 .gauge-value { stroke: var(--warm); filter: drop-shadow(0 0 6px rgba(255, 122, 60, 0.85)); }
 .speed {
-  font-family: Orbitron, Rajdhani, sans-serif;
-  font-size: 2.7rem;
+  font-family: Oswald, sans-serif;
+  font-size: 1.85rem;
   line-height: 0.9;
-  margin-top: -46px;
+  margin-top: -28px;
   font-variant-numeric: tabular-nums;
 }
 .unit { letter-spacing: 0.16em; color: rgba(244, 241, 234, 0.75); }
@@ -283,11 +288,16 @@ tr.me td { color: var(--warm); }
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 5;
+  z-index: 8;
   justify-content: space-between;
   align-items: flex-end;
   gap: 10px;
-  padding: 0 10px calc(8px + env(safe-area-inset-bottom));
+  padding:
+    0
+    calc(10px + env(safe-area-inset-right))
+    calc(8px + env(safe-area-inset-bottom))
+    calc(10px + env(safe-area-inset-left));
+  pointer-events: none;
 }
 @media (pointer: coarse), (hover: none) {
   .touch:not([hidden]) { display: flex; }
@@ -365,24 +375,51 @@ tr.me td { color: var(--warm); }
 .touch button[data-ctl="nitro"].pressed { box-shadow: 0 0 14px rgba(255, 122, 60, 0.85); }
 
 @media (max-width: 760px) {
-  .standings { width: min(46vw, 180px); padding: 8px; }
-  .pos { font-size: 2.2rem; }
-  .minimap { width: 92px; height: 92px; }
-  .times { min-width: 0; padding: 8px; }
-  .times strong { font-size: 1rem; }
-  .speed { font-size: 3.2rem; }
+  .standings { width: min(38vw, 168px); padding: 8px; top: 8px; left: 8px; }
+  .pos { font-size: 1.7rem; }
+  .minimap { width: 72px; height: 72px; }
+  .times { min-width: 0; padding: 8px; top: 8px; right: 8px; }
+  .times strong { font-size: 0.95rem; }
   .menu { top: auto; bottom: 18px; transform: none; }
 }
 
-@media (pointer: coarse) {
-  .speedo {
-    left: 50%;
-    right: auto;
-    bottom: calc(132px + env(safe-area-inset-bottom));
-    transform: translateX(-50%);
-    width: auto;
-    text-align: center;
-  }
-  .rpm { justify-content: center; }
-  .hint { bottom: calc(124px + env(safe-area-inset-bottom)); }
+.streaks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 18px, rgba(255, 248, 242, 0.14) 18px 20px);
+  mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+  transition: opacity 180ms linear;
+}
+.rotate-hint {
+  display: none;
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(8, 10, 16, 0.72);
+  border: 1px solid rgba(255, 248, 242, 0.2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+@media (max-height: 520px) {
+  .speedo { width: 104px; padding: 2px 6px 4px; }
+  .gauge { height: 22px; }
+  .speed { font-size: 1.35rem; margin-top: -14px; }
+  .speedo .cam, .speedo .rpm, .speedo .unit { display: none; }
+  .gear { font-size: 0.85rem; }
+  .standings { width: min(28vw, 140px); padding: 6px 8px; }
+  .standings ol { display: none; }
+  .minimap { width: 48px; height: 48px; }
+  .times { padding: 6px; }
+}
+@media (pointer: coarse) and (orientation: portrait) {
+  .rotate-hint { display: block; }
 }

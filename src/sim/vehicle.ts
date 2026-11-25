@@ -40,6 +40,7 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
   car.brake = brake
   car.steer = steer
   car.handbrake = input.handbrake
+  car.nitro = Boolean(input.nitro && throttle > 0.45)
 
   const proj = project(track, car.x, car.z, car.segHint)
   car.segHint = proj.index

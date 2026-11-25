@@ -48,6 +48,7 @@ export type Car = {
   throttle: number
   brake: number
   handbrake: boolean
+  nitro: boolean
   drifting: boolean
   wheelSpin: number
   segHint: number
@@ -280,6 +281,7 @@ function makeCar(track: Track, driver: DriverDef): Car {
     throttle: 0,
     brake: 0,
     handbrake: false,
+    nitro: false,
     drifting: false,
     wheelSpin: 0,
     segHint: 0,

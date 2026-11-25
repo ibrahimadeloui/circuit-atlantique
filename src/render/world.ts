@@ -906,7 +906,7 @@ function updateCamera(
         desired.z -= placed.rz * sign * excess
         desired.y = Math.max(desired.y, placed.y + 5.2)
       }
-      camera.fov = 60 + pace * 15
+      camera.fov = 60 + pace * 15 + (car.nitro ? 8 : 0)
     }
   }
   const chase = view.camera !== 'hood'

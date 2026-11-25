@@ -25,7 +25,7 @@ export type Input = {
 export function createInput(root: HTMLElement): Input {
   const keys = new Set<string>()
   const edges = { camera: false, respawn: false, pause: false, start: false, mute: false }
-  const pointers = new Map<number, { kind: string; x: number; y: number; cx: number; cy: number; max: number; button: HTMLElement | null }>()
+  const fingers = new Map<number, { kind: string | null; x: number; y: number; cx: number; cy: number; max: number }>()
   let aimX = 0
   let aimY = 0
   let joyX = 0
@@ -55,7 +55,7 @@ export function createInput(root: HTMLElement): Input {
   window.addEventListener('keyup', up)
   window.addEventListener('blur', () => {
     keys.clear()
-    pointers.clear()
+    fingers.clear()
     aimX = 0
     aimY = 0
   })
@@ -64,7 +64,7 @@ export function createInput(root: HTMLElement): Input {
   const nub = () => root.querySelector<HTMLElement>('[data-nub]')
 
   const heldKind = (kind: string) => {
-    for (const pointer of pointers.values()) if (pointer.kind === kind) return true
+    for (const finger of fingers.values()) if (finger.kind === kind) return true
     return false
   }
 
@@ -108,22 +108,6 @@ export function createInput(root: HTMLElement): Input {
     joystick()?.classList.add('active')
   }
 
-  const kindOf = (target: EventTarget | null) => {
-    const el = target as HTMLElement | null
-    if (!el?.closest) return null
-    if (el.closest('[data-joystick]')) return 'joy'
-    return el.closest<HTMLElement>('[data-ctl]')?.dataset.ctl ?? null
-  }
-
-  const kindAt = (target: EventTarget | null, x: number, y: number) =>
-    kindOf(target) ?? kindOf(document.elementFromPoint(x, y))
-
-  const buttonAt = (target: EventTarget | null, x: number, y: number) => {
-    const fromTarget = (target as HTMLElement | null)?.closest?.('button') ?? null
-    if (fromTarget) return fromTarget
-    return (document.elementFromPoint(x, y) as HTMLElement | null)?.closest?.('button') ?? null
-  }
-
   const resetJoy = () => {
     aimX = 0
     aimY = 0
@@ -134,100 +118,128 @@ export function createInput(root: HTMLElement): Input {
     joystick()?.classList.remove('active')
   }
 
-  const release = (id: number) => {
-    const pointer = pointers.get(id)
-    if (!pointer) return
-    pointers.delete(id)
-    pointer.button?.classList.remove('pressed')
-    if (pointer.kind === 'joy' && ![...pointers.values()].some((item) => item.kind === 'joy')) resetJoy()
+  const controls = () => {
+    const found: { kind: string; rect: DOMRect }[] = []
+    root.querySelectorAll<HTMLElement>('[data-ctl], [data-joystick]').forEach((el) => {
+      const style = getComputedStyle(el)
+      if (style.display === 'none' || style.visibility === 'hidden') return
+      const rect = el.getBoundingClientRect()
+      if (rect.width < 4 || rect.height < 4) return
+      const kind = el.dataset.ctl || (el.hasAttribute('data-joystick') ? 'joy' : '')
+      if (kind) found.push({ kind, rect })
+    })
+    found.sort((a, b) => a.rect.width * a.rect.height - b.rect.width * b.rect.height)
+    return found
   }
 
-  const begin = (id: number, target: EventTarget | null, x: number, y: number) => {
-    const kind = kindAt(target, x, y)
-    if (!kind) return false
-    if (kind === 'camera') {
-      edges.camera = true
-      buzz(8)
+  const hitAt = (x: number, y: number) => {
+    for (const control of controls()) {
+      const { rect } = control
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return control.kind
+    }
+    return null
+  }
+
+  const placeFinger = (id: number, x: number, y: number, fresh: boolean) => {
+    let finger = fingers.get(id)
+    if (!finger) {
+      finger = { kind: null, x, y, cx: x, cy: y, max: 46 }
+      fingers.set(id, finger)
+    }
+    finger.x = x
+    finger.y = y
+    if (finger.kind === 'joy') {
+      updateJoy(finger)
       return true
     }
-    const button = kind === 'joy' ? null : buttonAt(target, x, y)
-    button?.classList.add('pressed')
-    if (button) buzz(10)
-    const origin = kind === 'joy' ? centerOf() : { cx: x, cy: y, max: 46 }
-    const record = { kind, x, y, cx: origin.cx, cy: origin.cy, max: origin.max, button }
-    pointers.set(id, record)
-    const capture = kind === 'joy' ? joystick() : button
-    try {
-      capture?.setPointerCapture(id)
-    } catch {
-      /* le pointeur tactile n'accepte pas toujours la capture */
+    const kind = hitAt(x, y)
+    if (kind === 'camera') {
+      if (fresh) {
+        edges.camera = true
+        buzz(8)
+      }
+      finger.kind = null
+      return true
     }
-    if (kind === 'joy') updateJoy(record)
-    return true
+    if (kind === 'joy') {
+      const origin = centerOf()
+      finger.kind = 'joy'
+      finger.cx = origin.cx
+      finger.cy = origin.cy
+      finger.max = origin.max
+      updateJoy(finger)
+      if (fresh) buzz(10)
+      return true
+    }
+    if (fresh && kind && kind !== finger.kind) buzz(10)
+    finger.kind = kind
+    return kind !== null
   }
 
-  const moveJoy = (id: number, x: number, y: number) => {
-    const pointer = pointers.get(id)
-    if (!pointer || pointer.kind !== 'joy') return false
-    pointer.x = x
-    pointer.y = y
-    updateJoy(pointer)
-    return true
+  const releaseFinger = (id: number) => {
+    const finger = fingers.get(id)
+    if (!finger) return
+    fingers.delete(id)
+    if (finger.kind === 'joy' && ![...fingers.values()].some((item) => item.kind === 'joy')) resetJoy()
   }
 
-  const moveAnyJoy = (x: number, y: number) => {
-    const joys = [...pointers.entries()].filter(([, pointer]) => pointer.kind === 'joy')
-    const hit = joys.length === 1 ? joys[0] : undefined
-    if (!hit) return
-    moveJoy(hit[0], x, y)
+  const refreshFingers = () => {
+    for (const finger of fingers.values()) {
+      if (finger.kind === 'joy') {
+        updateJoy(finger)
+        continue
+      }
+      const kind = hitAt(finger.x, finger.y)
+      if (kind === 'joy') {
+        const origin = centerOf()
+        finger.kind = 'joy'
+        finger.cx = origin.cx
+        finger.cy = origin.cy
+        finger.max = origin.max
+        updateJoy(finger)
+        continue
+      }
+      finger.kind = kind === 'camera' ? null : kind
+    }
   }
 
   window.addEventListener('pointerdown', (event) => {
+    if (event.pointerType === 'touch') return
     if (event.pointerType === 'mouse' && event.button !== 0) return
-    if (!begin(event.pointerId, event.target, event.clientX, event.clientY)) return
+    if (!placeFinger(event.pointerId, event.clientX, event.clientY, true)) return
     event.preventDefault()
   }, { passive: false })
   window.addEventListener('pointermove', (event) => {
-    if (!pointers.has(event.pointerId)) return
-    if (pointers.get(event.pointerId)?.kind === 'joy') event.preventDefault()
-    moveJoy(event.pointerId, event.clientX, event.clientY)
+    if (event.pointerType === 'touch') return
+    if (!fingers.has(event.pointerId)) return
+    event.preventDefault()
+    placeFinger(event.pointerId, event.clientX, event.clientY, false)
   }, { passive: false })
   const endPointer = (event: PointerEvent) => {
-    release(event.pointerId)
+    if (event.pointerType === 'touch') return
+    releaseFinger(event.pointerId)
   }
   window.addEventListener('pointerup', endPointer)
   window.addEventListener('pointercancel', endPointer)
 
-  window.addEventListener('touchstart', (event) => {
+  const onTouch = (event: TouchEvent, fresh: boolean) => {
     let used = false
     for (const touch of Array.from(event.changedTouches)) {
-      if (kindAt(touch.target, touch.clientX, touch.clientY)) used = true
+      if (placeFinger(touch.identifier, touch.clientX, touch.clientY, fresh)) used = true
     }
     if (used) event.preventDefault()
-  }, { passive: false })
+  }
+  window.addEventListener('touchstart', (event) => onTouch(event, true), { passive: false })
   window.addEventListener('touchmove', (event) => {
-    let used = false
-    for (const touch of Array.from(event.changedTouches)) {
-      if (pointers.has(touch.identifier)) {
-        const pointer = pointers.get(touch.identifier)!
-        pointer.x = touch.clientX
-        pointer.y = touch.clientY
-        if (pointer.kind === 'joy') updateJoy(pointer)
-        used = true
-      } else {
-        const before = aimX
-        moveAnyJoy(touch.clientX, touch.clientY)
-        if (aimX !== before) used = true
-      }
-    }
-    if (used || pointers.size > 0) event.preventDefault()
+    onTouch(event, false)
+    if (fingers.size > 0 && event.cancelable) event.preventDefault()
   }, { passive: false })
   const endTouch = (event: TouchEvent) => {
-    if (event.touches.length > 0) return
-    for (const id of [...pointers.keys()]) release(id)
+    for (const touch of Array.from(event.changedTouches)) releaseFinger(touch.identifier)
+    if (event.cancelable) event.preventDefault()
   }
-  window.addEventListener('touchend', endTouch)
-  window.addEventListener('touchcancel', endTouch)
+  window.addEventListener('touchend', endTouch, { passive: false })
+  window.addEventListener('touchcancel', endTouch, { passive: false })
   window.addEventListener('contextmenu', (event) => event.preventDefault())
   window.addEventListener('selectstart', (event) => event.preventDefault())
   for (const name of ['gesturestart', 'gesturechange', 'gestureend']) {
@@ -240,6 +252,7 @@ export function createInput(root: HTMLElement): Input {
   return {
     read: (dt = 1 / 60) => {
       const step = Math.min(0.05, Math.max(0, dt))
+      refreshFingers()
       joyX = ease(joyX, aimX, 12, step)
       joyY = ease(joyY, aimY, 12, step)
       // Écran : haut = clientY plus petit. updateJoy inverse ce Y, donc joyY > 0 = stick vers le haut = avancer.

@@ -64,6 +64,7 @@ export type Ui = {
 
 export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
   root.innerHTML = `
+    <div class="streaks" data-streaks></div>
     <div class="hud" data-hud>
       <div class="panel standings">
         <div class="pos" data-pos></div>
@@ -160,6 +161,7 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
         </div>
       </div>
     </section>
+    <div class="rotate-hint" data-rotate>Tournez le téléphone</div>
     <div class="touch" data-touch hidden>
       <div class="steer-col">
         <div class="steer-buttons">
@@ -285,6 +287,8 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
       setOrdinal(q('[data-pos]'), model.position)
       q('[data-lap]').textContent = `Tour ${model.lapText}`
       q('[data-speed]').textContent = String(Math.round(Math.abs(model.speed)))
+      const streaks = q<HTMLElement>('[data-streaks]')
+      streaks.style.opacity = String(Math.max(0, Math.min(0.55, (Math.abs(model.speed) - 40) / 180)))
       const speedT = Math.max(0, Math.min(1, Math.abs(model.speed) / 280))
       arc.style.strokeDashoffset = `${arcLen * (1 - speedT)}`
       q('[data-gear]').textContent = model.gear
