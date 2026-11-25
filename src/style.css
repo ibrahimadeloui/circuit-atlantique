@@ -299,7 +299,7 @@ tr.me td { color: var(--warm); }
     calc(10px + env(safe-area-inset-left));
   pointer-events: none;
 }
-@media (pointer: coarse), (hover: none) {
+@media (pointer: coarse), (hover: none), (max-width: 1100px) {
   .touch:not([hidden]) { display: flex; }
 }
 .touch-pad, .touch-util {

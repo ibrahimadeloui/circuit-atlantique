@@ -276,7 +276,7 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
       q('[data-finish]').hidden = model.phase !== 'finished'
       q<HTMLButtonElement>('[data-mute]').textContent = model.muted ? 'Son coupé' : 'Son'
       const touch = root.querySelector<HTMLElement>('[data-touch]')!
-      const coarse = window.matchMedia('(pointer: coarse), (hover: none)').matches
+      const coarse = window.matchMedia('(pointer: coarse), (hover: none)').matches || navigator.maxTouchPoints > 0 || window.innerWidth < 1100
       touch.hidden = !(coarse && (model.phase === 'racing' || model.phase === 'countdown'))
 
       if (model.phase === 'menu') {

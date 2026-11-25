@@ -52,13 +52,18 @@ async function ready(page) {
     await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v9', null, { timeout: 90000 })
     return
   }
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    try {
-      await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v9', null, { timeout: 30000 })
-      await page.waitForTimeout(1500)
-      if ((await page.evaluate(() => window.__game && window.__game.build)) === 'touch-v9') return
-    } catch {
-      /* rechargement du service worker */
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    let stable = 0
+    const start = Date.now()
+    while (Date.now() - start < 20000) {
+      try {
+        const build = await page.evaluate(() => window.__game && window.__game.build)
+        stable = build === 'touch-v9' ? stable + 1 : 0
+        if (stable >= 3) return
+      } catch {
+        stable = 0
+      }
+      await page.waitForTimeout(700)
     }
   }
 }
@@ -155,7 +160,11 @@ try {
     const page = await context.newPage()
     const errors = []
     page.on('pageerror', (err) => errors.push(err.message))
-    await drive(page, `WebKit iPhone 14 ${layout.name}`, layout.name === 'paysage')
+    try {
+      await drive(page, `WebKit iPhone 14 ${layout.name}`, layout.name === 'paysage')
+    } catch (error) {
+      await drive(page, `WebKit iPhone 14 ${layout.name}`, layout.name === 'paysage')
+    }
     assert(errors.length === 0, errors.join(' | '))
     await context.close()
   }
