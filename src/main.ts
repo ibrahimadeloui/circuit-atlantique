@@ -297,7 +297,7 @@ function step(now: number): void {
   adaptQuality(dt)
 }
 
-const BUILD = 'forward-v6'
+const BUILD = 'steer-v7'
 
 function publishGameState(): void {
   const player = race.cars[0]!
@@ -313,6 +313,7 @@ function publishGameState(): void {
       heading: number
       throttle: number
       brake: number
+      clock: number
       forward: { x: number; z: number }
     nose: { x: number; z: number } | null
     skipToRace: () => void
@@ -326,6 +327,7 @@ function publishGameState(): void {
     heading: player.heading,
     throttle: player.throttle,
     brake: player.brake,
+    clock: race.clock,
     forward: { x: fx, z: fz },
     nose: nose ?? null,
     skipToRace() {

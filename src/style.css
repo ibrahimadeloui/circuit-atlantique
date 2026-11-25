@@ -12,7 +12,17 @@
   --red: #ff4d3a;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-user-drag: none;
+}
+html, body, #app, #view, #ui, button, .hud, .touch, .joystick, .steer-col, .menu, .overlay {
+  touch-action: none;
+}
 html, body, #app { margin: 0; height: 100%; }
 body { overflow: hidden; background: #07080c; }
 button, canvas { font: inherit; }
@@ -286,6 +296,10 @@ tr.me td { color: var(--warm); }
   align-items: flex-end;
   gap: 6px;
 }
+.steer-col { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.steer-buttons { display: flex; gap: 8px; }
+.touch svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.touch button.gas svg, .touch button.brake svg, .touch button[data-ctl="nitro"] svg { fill: currentColor; stroke: none; }
 .joystick {
   width: 108px;
   height: 108px;

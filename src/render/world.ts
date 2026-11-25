@@ -11,7 +11,7 @@ import {
   createWaterNormal,
 } from './textures.ts'
 import type { Race } from '../sim/race.ts'
-import { sampleAlong, type Sample, type Track } from '../sim/track.ts'
+import { sampleAlong, project, type Sample, type Track } from '../sim/track.ts'
 
 export type Phase = 'menu' | 'countdown' | 'racing' | 'paused' | 'finished'
 
@@ -42,6 +42,7 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
     canvas,
     antialias: false,
     powerPreference: 'high-performance',
+    preserveDrawingBuffer: true,
   })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
   renderer.setSize(canvas.clientWidth || 1280, canvas.clientHeight || 720, false)
@@ -52,7 +53,7 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   renderer.outputColorSpace = THREE.SRGBColorSpace
 
   const scene = new THREE.Scene()
-  scene.fog = new THREE.Fog(0xff7a6a, 160, 720)
+  scene.fog = new THREE.Fog(0xc46a78, 380, 1700)
   const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 40000)
 
   const [hdr, surfaces] = await Promise.all([
@@ -231,14 +232,14 @@ function buildTrackSurface(scene: THREE.Scene, track: Track, surfaces: SurfaceSe
   scene.add(coloredMesh(flatRibbon(track, -track.halfWidth, track.halfWidth, 0.05, 0.05, 7), asphalt))
   scene.add(coloredMesh(flatRibbon(track, track.halfWidth + 0.5, track.wall - 0.05, 0.03, 0.03, 6), sand))
   scene.add(coloredMesh(flatRibbon(track, -(track.wall - 0.05), -(track.halfWidth + 0.5), 0.03, 0.03, 6), sand))
-  const curbMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.04, side: THREE.DoubleSide })
+  const curbMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, toneMapped: false })
   scene.add(coloredMesh(curbRibbon(track, 1), curbMat))
   scene.add(coloredMesh(curbRibbon(track, -1), curbMat))
 }
 
 function buildWalls(scene: THREE.Scene, track: Track, surfaces: SurfaceSet): void {
   const concrete = surfaces.concrete.clone()
-  const stripe = new THREE.MeshStandardMaterial({ color: 0xff7a3c, roughness: 0.45, metalness: 0.12, emissive: 0x5a2208, emissiveIntensity: 0.18 })
+  const stripe = new THREE.MeshBasicMaterial({ color: 0xfff6ee, side: THREE.DoubleSide, toneMapped: false })
   const { positions, normals } = wallGeometry(track)
   const geo = new THREE.BufferGeometry()
   const pos = new THREE.Float32BufferAttribute(positions, 3)
@@ -255,19 +256,22 @@ function buildWalls(scene: THREE.Scene, track: Track, surfaces: SurfaceSet): voi
   mesh.receiveShadow = true
   scene.add(mesh)
 
-  const band = flatRibbon(track, track.wall - 0.02, track.wall + 0.46, 0.96, 0.96, 4)
-  const band2 = flatRibbon(track, -(track.wall + 0.46), -(track.wall - 0.02), 0.96, 0.96, 4)
+  const band = flatRibbon(track, track.wall - 0.02, track.wall + 0.46, 1.2, 1.2, 4)
+  const band2 = flatRibbon(track, -(track.wall + 0.46), -(track.wall - 0.02), 1.2, 1.2, 4)
   scene.add(coloredMesh(band, stripe))
   scene.add(coloredMesh(band2, stripe))
   scene.add(embankment(track, 1))
   scene.add(embankment(track, -1))
 
-  const posts = new THREE.CylinderGeometry(0.08, 0.09, 0.85, 6)
-  posts.translate(0, 0.42, 0)
-  const postMat = new THREE.MeshStandardMaterial({ color: 0xf4f4f2, roughness: 0.4, metalness: 0.05 })
-  const matrices: THREE.Matrix4[] = []
+  const posts = new THREE.CylinderGeometry(0.1, 0.11, 1.25, 6)
+  posts.translate(0, 0.62, 0)
+  const whiteMat = new THREE.MeshBasicMaterial({ color: 0xfff6ee, toneMapped: false })
+  const redMat = new THREE.MeshBasicMaterial({ color: 0xe10600, toneMapped: false })
+  const white: THREE.Matrix4[] = []
+  const red: THREE.Matrix4[] = []
   const dummy = new THREE.Object3D()
-  for (let dist = 0; dist < track.length; dist += 12) {
+  let postIndex = 0
+  for (let dist = 0; dist < track.length; dist += 8) {
     for (const side of [1, -1]) {
       const s = sampleAlong(track, dist)
       const base = roadPoint(s, side * (track.wall + 0.15), 0)
@@ -275,46 +279,49 @@ function buildWalls(scene: THREE.Scene, track: Track, surfaces: SurfaceSet): voi
       dummy.rotation.set(0, 0, 0)
       dummy.scale.set(1, 1, 1)
       dummy.updateMatrix()
-      matrices.push(dummy.matrix.clone())
+      ;(postIndex % 2 === 0 ? white : red).push(dummy.matrix.clone())
     }
+    postIndex += 1
   }
-  const inst = new THREE.InstancedMesh(posts, postMat, matrices.length)
-  matrices.forEach((m, i) => inst.setMatrixAt(i, m))
-  inst.castShadow = false
-  scene.add(inst)
+  for (const [list, material] of [[white, whiteMat], [red, redMat]] as const) {
+    const inst = new THREE.InstancedMesh(posts, material, list.length)
+    list.forEach((m, i) => inst.setMatrixAt(i, m))
+    inst.castShadow = false
+    scene.add(inst)
+  }
 }
 
 function buildMarkings(scene: THREE.Scene, track: Track): void {
-  const paint = new THREE.MeshStandardMaterial({
-    color: 0xf4f1ea,
-    roughness: 0.6,
-    metalness: 0,
+  const paint = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
     side: THREE.DoubleSide,
+    toneMapped: false,
     polygonOffset: true,
-    polygonOffsetFactor: -2,
-    polygonOffsetUnits: -2,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
   })
   const positions: number[] = []
   const pushRoad = (a: Sample, latA: number, b: Sample, latB: number, lift: number) => {
+    const width = 0.28
     const p0 = roadPoint(a, latA, lift)
     const p1 = roadPoint(b, latB, lift)
-    const p2 = roadPoint(b, latB + Math.sign(latB || 1) * 0.16, lift)
-    const p3 = roadPoint(a, latA + Math.sign(latA || 1) * 0.16, lift)
+    const p2 = roadPoint(b, latB + Math.sign(latB || 1) * width, lift)
+    const p3 = roadPoint(a, latA + Math.sign(latA || 1) * width, lift)
     positions.push(p0.x, p0.y, p0.z, p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p0.x, p0.y, p0.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z)
   }
   for (let i = 0; i < track.samples.length; i++) {
     const a = track.samples[i]!
     const b = track.samples[(i + 1) % track.samples.length]!
-    for (const side of [1, -1]) pushRoad(a, side * (track.halfWidth - 0.55), b, side * (track.halfWidth - 0.55), 0.025)
+    for (const side of [1, -1]) pushRoad(a, side * (track.halfWidth - 0.55), b, side * (track.halfWidth - 0.55), 0.09)
   }
-  for (let dist = 4; dist < track.length; dist += 8) {
+  for (let dist = 3; dist < track.length; dist += 6) {
     const a = sampleAlong(track, dist)
-    const b = sampleAlong(track, dist + 3.4)
-    const w = 0.12
-    const pa = roadPoint(a, w, 0.03)
-    const pb = roadPoint(b, w, 0.03)
-    const pc = roadPoint(b, -w, 0.03)
-    const pd = roadPoint(a, -w, 0.03)
+    const b = sampleAlong(track, dist + 2.6)
+    const w = 0.2
+    const pa = roadPoint(a, w, 0.09)
+    const pb = roadPoint(b, w, 0.09)
+    const pc = roadPoint(b, -w, 0.09)
+    const pd = roadPoint(a, -w, 0.09)
     positions.push(pa.x, pa.y, pa.z, pb.x, pb.y, pb.z, pc.x, pc.y, pc.z, pa.x, pa.y, pa.z, pc.x, pc.y, pc.z, pd.x, pd.y, pd.z)
   }
   const geo = new THREE.BufferGeometry()
@@ -817,9 +824,18 @@ function updateCamera(
       lookTarget.set(car.x + fx * 22, carY + 0.55, car.z + fz * 22)
       camera.fov = 66 + pace * 12
     } else {
-      desired.set(car.x - fx * 6.6 + rx * 0.15, carY + 2.35, car.z - fz * 6.6 + rz * 0.15)
-      lookTarget.set(car.x + fx * 4.5, carY + 0.9, car.z + fz * 4.5)
-      camera.fov = 60 + pace * 15
+      desired.set(car.x - fx * 11.2 + rx * 0.15, carY + 4.8, car.z - fz * 11.2 + rz * 0.15)
+      lookTarget.set(car.x + fx * 20, carY + 1.35, car.z + fz * 20)
+      const placed = project(track, desired.x, desired.z)
+      if (Math.abs(placed.lat) > track.halfWidth - 0.3) {
+        const keep = track.halfWidth * 0.7
+        const sign = Math.sign(placed.lat)
+        const excess = Math.abs(placed.lat) - keep
+        desired.x -= placed.rx * sign * excess
+        desired.z -= placed.rz * sign * excess
+        desired.y = Math.max(desired.y, placed.y + 5.4)
+      }
+      camera.fov = 58 + pace * 12
     }
   }
   const chase = view.camera !== 'hood'
@@ -885,10 +901,15 @@ function curbRibbon(track: Track, side: number): THREE.BufferGeometry {
   for (let i = 0; i <= n; i++) {
     const s = samples[i % n]!
     const dist = i === n ? track.length : s.dist
-    const warm = Math.floor(dist / 1.55) % 2 === 0
-    const c: [number, number, number] = warm ? [1, 0.48, 0.18] : [0.18, 0.86, 0.8]
-    const inner = roadPoint(s, latA, 0.03)
-    const outer = roadPoint(s, latB, 0.09)
+    const corner = Math.abs(s.curvature) > 0.01
+    const stripe = Math.floor(dist / 1.15) % 2 === 0
+    const c: [number, number, number] = !corner
+      ? [0.22, 0.22, 0.24]
+      : stripe
+        ? [0.9, 0.07, 0.08]
+        : [0.96, 0.96, 0.96]
+    const inner = roadPoint(s, latA, 0.08)
+    const outer = roadPoint(s, latB, 0.14)
     positions.push(inner.x, inner.y, inner.z, outer.x, outer.y, outer.z)
     colors.push(...c, ...c)
   }
@@ -928,7 +949,7 @@ function addWall(
 ): void {
   const p = (s: Sample, lat: number, lift: number): Vec => roadPoint(s, lat, lift)
   const y0 = 0
-  const y1 = 0.95
+  const y1 = 1.25
   const aIn0 = p(a, latIn, y0)
   const aIn1 = p(a, latIn, y1)
   const bIn0 = p(b, latIn, y0)

@@ -8,7 +8,7 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8735",
     "test:race": "tsx src/sim/selftest.ts",
-    "check": "tsx src/sim/selftest.ts && node tests/touch.check.mjs && node tests/forward.check.mjs"
+    "check": "tsx src/sim/selftest.ts && node tests/touch.check.mjs && node tests/forward.check.mjs && node tests/steer.check.mjs"
   },
   "dependencies": {
     "@fontsource/orbitron": "^5.3.0",

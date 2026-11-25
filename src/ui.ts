@@ -123,7 +123,7 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
           <li><b>Échap</b> Pause</li>
           <li><b>M</b> Couper le son</li>
         </ul>
-        <p>Sur écran tactile : joystick à gauche, Gaz, Frein, Nitro et Main à droite. Les points de contrôle empêchent de couper le circuit.</p>
+        <p>Sur écran tactile : flèches ou joystick à gauche, Gaz et Frein à droite. Les points de contrôle empêchent de couper le circuit.</p>
         <button type="button" class="primary" data-close-help>Fermer</button>
       </div>
     </section>
@@ -160,18 +160,24 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
       </div>
     </section>
     <div class="touch" data-touch hidden>
-      <div class="joystick" data-joystick aria-label="Direction">
-        <div class="nub" data-nub></div>
+      <div class="steer-col">
+        <div class="steer-buttons">
+          <button type="button" data-ctl="left" aria-label="Gauche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4 L7 12 L15 20" /></svg></button>
+          <button type="button" data-ctl="right" aria-label="Droite"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 L17 12 L9 20" /></svg></button>
+        </div>
+        <div class="joystick" data-joystick aria-label="Direction">
+          <div class="nub" data-nub></div>
+        </div>
       </div>
       <div class="touch-side">
         <div class="touch-util">
-          <button type="button" data-ctl="handbrake" aria-label="Frein à main">Main</button>
-          <button type="button" data-ctl="nitro" aria-label="Nitro">Nitro</button>
-          <button type="button" data-ctl="camera" aria-label="Caméra">Caméra</button>
+          <button type="button" data-ctl="handbrake" aria-label="Frein à main"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 14 V7 M8 7 h6 a4 4 0 0 1 0 8 H8" /></svg></button>
+          <button type="button" data-ctl="nitro" aria-label="Nitro"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 3 L6 13 h6 l-1 8 8-12 h-6 z" /></svg></button>
+          <button type="button" data-ctl="camera" aria-label="Caméra"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" /><path d="M4 9 h3 l2-2 h6 l2 2 h3 v9 H4 z" /></svg></button>
         </div>
         <div class="touch-pad">
-          <button type="button" class="brake" data-ctl="brake" aria-label="Freiner">Frein</button>
-          <button type="button" class="gas" data-ctl="throttle" aria-label="Accélérer">Gaz</button>
+          <button type="button" class="brake" data-ctl="brake" aria-label="Freiner"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 6 h10 v12 H7 z" /></svg></button>
+          <button type="button" class="gas" data-ctl="throttle" aria-label="Accélérer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 L20 18 H4 z" /></svg></button>
         </div>
       </div>
     </div>

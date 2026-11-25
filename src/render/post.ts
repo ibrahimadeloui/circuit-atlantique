@@ -75,7 +75,7 @@ export function createPost(
       composer.addPass(ssao)
     }
     if (tier === 'haute' || tier === 'moyenne') {
-      const strength = tier === 'haute' ? 0.16 : 0.08
+      const strength = tier === 'haute' ? 0.05 : 0.03
       composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), strength, 0.32, 0.88))
     }
     if (tier !== 'basse') {

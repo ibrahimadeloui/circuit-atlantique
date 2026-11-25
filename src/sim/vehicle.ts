@@ -90,8 +90,8 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
   if (throttle < 0.04 && brake < 0.04 && Math.abs(car.speed) < 0.4) car.speed = 0
 
   const speedAbs = Math.abs(car.speed)
-  const lock = 0.46 + (0.11 - 0.46) * clamp(speedAbs / 58, 0, 1)
-  const softer = 1 - 0.28 * clamp(speedAbs / 64, 0, 1)
+  const lock = 0.62 + (0.34 - 0.62) * clamp(speedAbs / 55, 0, 1)
+  const softer = 1 - 0.12 * clamp(speedAbs / 70, 0, 1)
   const delta = -steer * lock * softer
   const vx = car.speed
   let vy = -car.slip
@@ -121,6 +121,11 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
     const kinematic = -(vx / WHEELBASE) * Math.tan(-delta)
     yaw = yaw * (1 - blend) + kinematic * blend
     vy *= 1 - blend * 0.7
+  }
+  if (speedAbs > 2 && Math.abs(steer) > 0.12) {
+    const targetYaw = -steer * Math.min(1.15, 0.42 + speedAbs * 0.02)
+    const follow = 1 - Math.exp(-6 * dt)
+    yaw += (targetYaw - yaw) * follow * 0.7
   }
   yaw = clamp(yaw, -1.8, 1.8)
   vy = clamp(vy, -12, 12)
