@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RGBELoader } from 'three/addons/loaders/RGBELoader.js'
-import { createCarVisual, type CarVisual } from './cars.ts'
+import { loadRaceCars, type CarVisual } from './cars.ts'
 import { createPost, type PostTier } from './post.ts'
 import { createSky } from './sky.ts'
 import { loadSurfaces, type SurfaceSet } from './surfaces.ts'
@@ -56,16 +56,22 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   scene.fog = new THREE.Fog(0xc46a78, 380, 1700)
   const camera = new THREE.PerspectiveCamera(60, 16 / 9, 0.15, 40000)
 
-  const [hdr, surfaces] = await Promise.all([
+  const [sunsetHdr, dayHdr, surfaces] = await Promise.all([
     new RGBELoader().loadAsync('/assets/hdri/venice_sunset_1k.hdr'),
+    new RGBELoader().loadAsync('/assets/hdri/kloofendal_48d_partly_cloudy_puresky_1k.hdr'),
     loadSurfaces(),
   ])
-  hdr.mapping = THREE.EquirectangularReflectionMapping
   const pmrem = new THREE.PMREMGenerator(renderer)
-  scene.environment = pmrem.fromEquirectangular(hdr).texture
+  sunsetHdr.mapping = THREE.EquirectangularReflectionMapping
+  dayHdr.mapping = THREE.EquirectangularReflectionMapping
+  const sunsetEnv = pmrem.fromEquirectangular(sunsetHdr).texture
+  const dayEnv = pmrem.fromEquirectangular(dayHdr).texture
+  scene.environment = sunsetEnv
   scene.environmentIntensity = 0.9
+  scene.userData.dayEnvironment = dayEnv
   pmrem.dispose()
-  hdr.dispose()
+  sunsetHdr.dispose()
+  dayHdr.dispose()
 
   const sun = new THREE.Vector3(-0.55, 0.38, -0.32).normalize()
   const sky = createSky(scene, sun)
@@ -78,10 +84,10 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   sunLight.shadow.normalBias = 0.035
   sunLight.shadow.camera.near = 4
   sunLight.shadow.camera.far = 90
-  sunLight.shadow.camera.left = -26
-  sunLight.shadow.camera.right = 26
-  sunLight.shadow.camera.top = 26
-  sunLight.shadow.camera.bottom = -26
+  sunLight.shadow.camera.left = -18
+  sunLight.shadow.camera.right = 18
+  sunLight.shadow.camera.top = 18
+  sunLight.shadow.camera.bottom = -18
   scene.add(sunLight)
   scene.add(sunLight.target)
 
@@ -89,15 +95,14 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   buildTrackSurface(scene, track, surfaces)
   buildWalls(scene, track, surfaces)
   buildMarkings(scene, track)
+  buildKerbBlocks(scene, track)
+  buildTyreWalls(scene, track)
   buildGantry(scene, track)
   buildProps(scene, track, surfaces)
   buildRails(scene, track)
 
-  const cars = race.cars.map((car) => {
-    const visual = createCarVisual(car.color, car.accent, car.number)
-    scene.add(visual.root)
-    return visual
-  })
+  const cars = await loadRaceCars()
+  for (const visual of cars) scene.add(visual.root)
   const dust = buildDust(scene)
   const sparks = buildSparks(scene)
   const waterNormal = scene.getObjectByName('water') as THREE.Mesh | undefined
@@ -105,6 +110,7 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
   const lights = gantryLights(scene)
   const camPos = new THREE.Vector3(0, 8, 12)
   const look = new THREE.Vector3()
+  const rig = { yaw: 0 }
   let shakeLeft = 0
   let camTime = 0
   const post = createPost(renderer, scene, camera)
@@ -159,7 +165,7 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
       sunLight.target.updateMatrixWorld()
       sky.position.copy(camera.position)
       camTime += dt
-      updateCamera(camera, camPos, look, track, race, view, dt, shakeLeft, camTime)
+      updateCamera(camera, camPos, look, rig, track, race, view, dt, shakeLeft, camTime)
       shakeLeft = Math.max(0, shakeLeft - dt * 1.6)
       if (dt > 1 / 30) slowFrames += 1
       else slowFrames = Math.max(0, slowFrames - 1)
@@ -172,8 +178,7 @@ export async function createWorld(canvas: HTMLCanvasElement, race: Race): Promis
         post.setTier(mobile ? 'basse' : 'phone')
         sunLight.castShadow = false
       }
-      if (post.tier() === 'basse') renderer.render(scene, camera)
-      else post.render()
+      post.render()
     },
     setQuality: (next) => {
       applyQuality(next)
@@ -777,9 +782,72 @@ function updateCars(race: Race, cars: CarVisual[]): void {
     const pitch = THREE.MathUtils.clamp(-car.accel * 0.003, -0.04, 0.04)
     view.body.rotation.set(pitch, 0, roll)
     const spin = car.wheelSpin % (Math.PI * 2)
-    for (const wheel of view.spins) wheel.rotation.z = spin
-    for (const steer of view.steers) steer.rotation.y = -car.steer * 0.42
+    for (const wheel of view.spins) {
+      wheel.rotation.order = 'YXZ'
+      wheel.rotation.y = view.steers.includes(wheel) ? -car.steer * 0.42 : 0
+      wheel.rotation.x = spin
+    }
     view.tail.emissiveIntensity = car.brake > 0.12 ? 3 : 0.4
+  }
+}
+
+function dampAngle(current: number, target: number, lambda: number, dt: number): number {
+  const diff = Math.atan2(Math.sin(target - current), Math.cos(target - current))
+  return current + diff * (1 - Math.exp(-lambda * dt))
+}
+
+function buildKerbBlocks(scene: THREE.Scene, track: Track): void {
+  const geo = new THREE.BoxGeometry(1.05, 0.14, 0.62)
+  const redMat = new THREE.MeshBasicMaterial({ color: 0xe10600, toneMapped: false })
+  const whiteMat = new THREE.MeshBasicMaterial({ color: 0xf7f7f7, toneMapped: false })
+  const red: THREE.Matrix4[] = []
+  const white: THREE.Matrix4[] = []
+  const dummy = new THREE.Object3D()
+  let index = 0
+  for (let dist = 0; dist < track.length; dist += 1.15) {
+    const s = sampleAlong(track, dist)
+    for (const side of [1, -1]) {
+      const point = roadPoint(s, side * (track.halfWidth + 0.05), 0.1)
+      dummy.position.set(point.x, point.y, point.z)
+      dummy.rotation.set(0, Math.atan2(s.tx, s.tz), 0)
+      dummy.scale.set(1, 1, 1)
+      dummy.updateMatrix()
+      ;(index % 2 === 0 ? red : white).push(dummy.matrix.clone())
+    }
+    index += 1
+  }
+  for (const [list, material] of [[red, redMat], [white, whiteMat]] as const) {
+    const mesh = new THREE.InstancedMesh(geo, material, list.length)
+    list.forEach((matrix, i) => mesh.setMatrixAt(i, matrix))
+    mesh.receiveShadow = true
+    scene.add(mesh)
+  }
+}
+
+function buildTyreWalls(scene: THREE.Scene, track: Track): void {
+  const geo = new THREE.CylinderGeometry(0.38, 0.38, 0.22, 12)
+  const black = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.9 })
+  const stripe = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.7 })
+  const dark: THREE.Matrix4[] = []
+  const light: THREE.Matrix4[] = []
+  const dummy = new THREE.Object3D()
+  for (let dist = 0; dist < track.length; dist += 6.5) {
+    const s = sampleAlong(track, dist)
+    for (const side of [1, -1]) {
+      for (let level = 0; level < 3; level += 1) {
+        const point = roadPoint(s, side * (track.halfWidth + 1.15), 0.16 + level * 0.22)
+        dummy.position.set(point.x, point.y, point.z)
+        dummy.rotation.set(0, 0, 0)
+        dummy.updateMatrix()
+        ;(level === 1 ? light : dark).push(dummy.matrix.clone())
+      }
+    }
+  }
+  for (const [list, material] of [[dark, black], [light, stripe]] as const) {
+    const mesh = new THREE.InstancedMesh(geo, material, list.length)
+    list.forEach((matrix, i) => mesh.setMatrixAt(i, matrix))
+    mesh.castShadow = true
+    scene.add(mesh)
   }
 }
 
@@ -796,6 +864,7 @@ function updateCamera(
   camera: THREE.PerspectiveCamera,
   camPos: THREE.Vector3,
   look: THREE.Vector3,
+  rig: { yaw: number },
   track: Track,
   race: Race,
   view: ViewState,
@@ -813,19 +882,21 @@ function updateCamera(
     camera.fov = 60
   } else {
     const car = race.cars[0]!
-    const fx = Math.cos(car.heading)
-    const fz = Math.sin(car.heading)
-    const rx = Math.sin(car.heading)
-    const rz = -Math.cos(car.heading)
+    rig.yaw = dampAngle(rig.yaw, car.heading, 8, dt)
+    const fx = Math.cos(rig.yaw)
+    const fz = Math.sin(rig.yaw)
+    const rx = Math.sin(rig.yaw)
+    const rz = -Math.cos(rig.yaw)
     const carY = car.roadY
     const pace = THREE.MathUtils.clamp(Math.abs(car.speed) / 62, 0, 1)
     if (view.camera === 'hood') {
       desired.set(car.x + fx * 0.9 + rx * -0.34, carY + 1.62, car.z + fz * 0.9 + rz * -0.34)
       lookTarget.set(car.x + fx * 22, carY + 0.55, car.z + fz * 22)
-      camera.fov = 66 + pace * 12
+      camera.fov = 66 + pace * 9
     } else {
-      desired.set(car.x - fx * 11.2 + rx * 0.15, carY + 4.8, car.z - fz * 11.2 + rz * 0.15)
-      lookTarget.set(car.x + fx * 20, carY + 1.35, car.z + fz * 20)
+      const dist = 8.2 + pace * 2.6
+      desired.set(car.x - fx * dist + rx * 0.12, carY + 3.15 + pace * 0.45, car.z - fz * dist + rz * 0.12)
+      lookTarget.set(car.x + fx * 11, carY + 0.9, car.z + fz * 11)
       const placed = project(track, desired.x, desired.z)
       if (Math.abs(placed.lat) > track.halfWidth - 0.3) {
         const keep = track.halfWidth * 0.7
@@ -833,15 +904,15 @@ function updateCamera(
         const excess = Math.abs(placed.lat) - keep
         desired.x -= placed.rx * sign * excess
         desired.z -= placed.rz * sign * excess
-        desired.y = Math.max(desired.y, placed.y + 5.4)
+        desired.y = Math.max(desired.y, placed.y + 5.2)
       }
-      camera.fov = 58 + pace * 12
+      camera.fov = 60 + pace * 15
     }
   }
   const chase = view.camera !== 'hood'
-  const k = 1 - Math.exp(-(chase ? 8 : 12) * dt)
-  if (camPos.distanceTo(desired) > 3.2) camPos.copy(desired)
-  else camPos.lerp(desired, view.phase === 'menu' ? Math.min(1, k) : k)
+  const follow = 1 - Math.exp(-14 * dt)
+  if (camPos.distanceTo(desired) > 8) camPos.copy(desired)
+  else camPos.lerp(desired, view.phase === 'menu' ? Math.min(1, follow) : follow)
   if (look.distanceTo(lookTarget) > 6) look.copy(lookTarget)
   else look.lerp(lookTarget, 1 - Math.exp(-(chase ? 14 : 16) * dt))
   const speed = race.cars[0] && view.phase !== 'menu' ? Math.abs(race.cars[0].speed) : 0

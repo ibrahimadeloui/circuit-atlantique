@@ -53,10 +53,10 @@ async function boot(page) {
   if (LIVE) {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       try {
-        await page.waitForFunction(() => window.__game && window.__game.build === 'steer-v7', null, { timeout: 30000 })
+        await page.waitForFunction(() => window.__game && window.__game.build === 'visual-v8', null, { timeout: 30000 })
         await page.waitForTimeout(2000)
         const build = await page.evaluate(() => window.__game && window.__game.build)
-        if (build === 'steer-v7') break
+        if (build === 'visual-v8') break
       } catch {
         /* rechargement du service worker */
       }

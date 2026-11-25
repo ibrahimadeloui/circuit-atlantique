@@ -156,6 +156,12 @@ export function createInput(root: HTMLElement): Input {
     const origin = kind === 'joy' ? centerOf() : { cx: x, cy: y, max: 46 }
     const record = { kind, x, y, cx: origin.cx, cy: origin.cy, max: origin.max, button }
     pointers.set(id, record)
+    const capture = kind === 'joy' ? joystick() : button
+    try {
+      capture?.setPointerCapture(id)
+    } catch {
+      /* le pointeur tactile n'accepte pas toujours la capture */
+    }
     if (kind === 'joy') updateJoy(record)
     return true
   }
@@ -177,18 +183,16 @@ export function createInput(root: HTMLElement): Input {
   }
 
   window.addEventListener('pointerdown', (event) => {
-    if (event.pointerType === 'touch') return
+    if (event.pointerType === 'mouse' && event.button !== 0) return
     if (!begin(event.pointerId, event.target, event.clientX, event.clientY)) return
     event.preventDefault()
   }, { passive: false })
   window.addEventListener('pointermove', (event) => {
-    if (event.pointerType === 'touch') return
     if (!pointers.has(event.pointerId)) return
-    event.preventDefault()
+    if (pointers.get(event.pointerId)?.kind === 'joy') event.preventDefault()
     moveJoy(event.pointerId, event.clientX, event.clientY)
   }, { passive: false })
   const endPointer = (event: PointerEvent) => {
-    if (event.pointerType === 'touch') return
     release(event.pointerId)
   }
   window.addEventListener('pointerup', endPointer)
@@ -197,7 +201,7 @@ export function createInput(root: HTMLElement): Input {
   window.addEventListener('touchstart', (event) => {
     let used = false
     for (const touch of Array.from(event.changedTouches)) {
-      if (begin(touch.identifier, touch.target, touch.clientX, touch.clientY)) used = true
+      if (kindAt(touch.target, touch.clientX, touch.clientY)) used = true
     }
     if (used) event.preventDefault()
   }, { passive: false })
@@ -219,7 +223,8 @@ export function createInput(root: HTMLElement): Input {
     if (used || pointers.size > 0) event.preventDefault()
   }, { passive: false })
   const endTouch = (event: TouchEvent) => {
-    for (const touch of Array.from(event.changedTouches)) release(touch.identifier)
+    if (event.touches.length > 0) return
+    for (const id of [...pointers.keys()]) release(id)
   }
   window.addEventListener('touchend', endTouch)
   window.addEventListener('touchcancel', endTouch)

@@ -140,6 +140,7 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
             <button type="button" data-quality-pick="moyen">Moyen</button>
             <button type="button" data-quality-pick="eleve">Élevé</button>
           </div>
+          <button type="button" class="secondary" data-steer-mode>Joystick</button>
           <button type="button" class="secondary" data-to-menu>Menu</button>
         </div>
       </div>
@@ -207,6 +208,11 @@ export function mountUi(root: HTMLElement, handlers: UiHandlers): Ui {
   q<HTMLButtonElement>('[data-to-menu]').addEventListener('click', handlers.onMenu)
   q<HTMLButtonElement>('[data-menu-finish]').addEventListener('click', handlers.onMenu)
   q<HTMLButtonElement>('[data-mute]').addEventListener('click', handlers.onMute)
+  q<HTMLButtonElement>('[data-steer-mode]').addEventListener('click', (event) => {
+    const touch = root.querySelector<HTMLElement>('[data-touch]')
+    touch?.classList.toggle('zones')
+    ;(event.currentTarget as HTMLButtonElement).classList.toggle('active', !touch?.classList.contains('zones'))
+  })
   root.querySelectorAll<HTMLButtonElement>('[data-quality-pick]').forEach((button) => {
     button.addEventListener('click', () => {
       const pick = button.dataset.qualityPick

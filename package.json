@@ -8,16 +8,16 @@
     "build": "tsc && vite build",
     "preview": "vite preview --host 127.0.0.1 --port 8735",
     "test:race": "tsx src/sim/selftest.ts",
-    "check": "tsx src/sim/selftest.ts && node tests/touch.check.mjs && node tests/forward.check.mjs && node tests/steer.check.mjs"
+    "check": "tsx src/sim/selftest.ts && node tests/touch.check.mjs && node tests/forward.check.mjs && node tests/steer.check.mjs && node tests/feel.check.mjs"
   },
   "dependencies": {
     "@fontsource/orbitron": "^5.3.0",
     "@fontsource/oswald": "^5.2.5",
     "@fontsource/rajdhani": "^5.2.6",
-    "three": "^0.181.2"
+    "three": "0.170.0"
   },
   "devDependencies": {
-    "@types/three": "^0.181.0",
+    "@types/three": "0.170.0",
     "playwright": "^1.65.1",
     "tsx": "^4.20.6",
     "typescript": "~7.0.2",

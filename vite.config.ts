@@ -25,11 +25,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        cacheId: 'circuit-atlantique-v7',
+        cacheId: 'circuit-atlantique-v8',
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
-        globPatterns: ['**/*.{js,css,html,svg,png,jpg,jpeg,webp,hdr,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,jpg,jpeg,webp,hdr,glb,woff2}'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
         navigateFallback: 'index.html',
       },

@@ -1,4 +1,6 @@
 import '@fontsource/orbitron/700.css'
+import '@fontsource/oswald/600.css'
+import '@fontsource/oswald/700.css'
 import '@fontsource/rajdhani/600.css'
 import '@fontsource/rajdhani/700.css'
 import './style.css'
@@ -203,7 +205,10 @@ if (import.meta.env.DEV) {
 
 let last = performance.now()
 
+let frameCount = 0
+
 function frame(now: number): void {
+  frameCount += 1
   try {
     step(now)
   } catch (error) {
@@ -297,7 +302,7 @@ function step(now: number): void {
   adaptQuality(dt)
 }
 
-const BUILD = 'steer-v7'
+const BUILD = 'visual-v8'
 
 function publishGameState(): void {
   const player = race.cars[0]!
@@ -314,6 +319,7 @@ function publishGameState(): void {
       throttle: number
       brake: number
       clock: number
+      frames: number
       forward: { x: number; z: number }
     nose: { x: number; z: number } | null
     skipToRace: () => void
@@ -328,6 +334,7 @@ function publishGameState(): void {
     throttle: player.throttle,
     brake: player.brake,
     clock: race.clock,
+    frames: frameCount,
     forward: { x: fx, z: fz },
     nose: nose ?? null,
     skipToRace() {
@@ -390,10 +397,12 @@ function model(): HudModel {
 }
 
 function ratioFor(next: Quality): number {
-  const cap = window.devicePixelRatio || 1
+  const mobile = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 820
+  const device = window.devicePixelRatio || 1
   if (next === 'bas') return 1
-  if (next === 'moyen') return Math.min(cap, 1.25)
-  return Math.min(cap, 1.6)
+  if (mobile) return Math.min(device, 1.5)
+  if (next === 'moyen') return Math.min(device, 1.25)
+  return Math.min(device, 1.5)
 }
 
 function gapText(rows: ReturnType<typeof standings>, index: number): string {

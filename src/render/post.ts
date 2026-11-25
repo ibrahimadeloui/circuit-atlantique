@@ -66,7 +66,7 @@ export function createPost(
       gtao.output = GTAOPass.OUTPUT.Default
       gtao.blendIntensity = 0.55
       composer.addPass(gtao)
-      composer.addPass(new SMAAPass())
+      composer.addPass(new SMAAPass(width * renderer.getPixelRatio(), height * renderer.getPixelRatio()))
     } else if (tier === 'moyenne') {
       const ssao = new SSAOPass(scene, camera, width, height, 12)
       ssao.kernelRadius = 8
@@ -78,9 +78,7 @@ export function createPost(
       const strength = tier === 'haute' ? 0.05 : 0.03
       composer.addPass(new UnrealBloomPass(new THREE.Vector2(width, height), strength, 0.32, 0.88))
     }
-    if (tier !== 'basse') {
-      composer.addPass(new LUTPass({ lut, intensity: 0.88 }))
-    }
+    composer.addPass(new LUTPass({ lut, intensity: 0.88 }))
     composer.addPass(new OutputPass())
   }
 

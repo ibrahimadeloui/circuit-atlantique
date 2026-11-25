@@ -79,7 +79,7 @@ async function exercise(page, label) {
   })
   assert(layout.joy, `${label}: joystick invisible`)
   assert(layout.gas && layout.brake && layout.nitro && layout.hand, `${label}: pédales manquantes`)
-  assert(Math.abs(layout.gas.w - 58) < 8 && Math.abs(layout.gas.h - 58) < 8, `${label}: Gaz n'est pas ~58 px (${layout.gas.w}×${layout.gas.h})`)
+  assert(layout.gas.w >= 68 && layout.gas.w <= 92 && layout.gas.h >= 68 && layout.gas.h <= 92, `${label}: Gaz n'est pas un gros bouton (${layout.gas.w}×${layout.gas.h})`)
   assert(!layout.overlaps.some(Boolean), `${label}: les contrôles recouvrent le HUD ou se chevauchent`)
 
   const origin = layout.joy
