@@ -265,9 +265,9 @@ export function createInput(root: HTMLElement): Input {
       if (throttle < 0.02) throttle = 0
       if (brake < 0.02) brake = 0
       let target = 0
-      if (keys.has('arrowleft') || keys.has('q') || keys.has('a') || heldKind('left')) target -= 1
-      if (keys.has('arrowright') || keys.has('d') || heldKind('right')) target += 1
-      target += joyX
+      if (keys.has('arrowleft') || keys.has('q') || keys.has('a') || heldKind('left')) target += 1
+      if (keys.has('arrowright') || keys.has('d') || heldKind('right')) target -= 1
+      target -= joyX
       target = Math.max(-1, Math.min(1, target))
       const maxDelta = Math.min(0.16, 10 * step)
       const next = steer + Math.max(-maxDelta, Math.min(maxDelta, target - steer))

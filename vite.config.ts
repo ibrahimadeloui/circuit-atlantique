@@ -25,7 +25,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        cacheId: 'circuit-atlantique-v10',
+        cacheId: 'circuit-atlantique-v11',
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,

@@ -56,15 +56,15 @@ async function ready(page, touch) {
   if (LIVE) {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       try {
-        await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v10', null, { timeout: 30000 })
+        await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v11', null, { timeout: 30000 })
         await page.waitForTimeout(2500)
         const build = await page.evaluate(() => window.__game && window.__game.build)
-        if (build === 'touch-v10') break
+        if (build === 'touch-v11') break
       } catch {
         /* le service worker recharge la page une fois */
       }
     }
-    await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v10', null, { timeout: 30000 })
+    await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v11', null, { timeout: 30000 })
     await page.evaluate(() => window.__game.skipToRace())
   } else {
     await page.waitForFunction(() => window.__circuit && window.__game, null, { timeout: 90000 })

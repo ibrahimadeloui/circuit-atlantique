@@ -926,6 +926,28 @@ function updateCamera(
     camera.rotateZ(THREE.MathUtils.clamp(-race.cars[0].steer * 0.045 - race.cars[0].slip * 0.004, -0.08, 0.08))
   }
   camera.updateProjectionMatrix()
+  const hook = globalThis as {
+    __cam?: {
+      px: number
+      py: number
+      pz: number
+      lx: number
+      ly: number
+      lz: number
+      fov: number
+      aspect: number
+    }
+  }
+  hook.__cam = {
+    px: camera.position.x,
+    py: camera.position.y,
+    pz: camera.position.z,
+    lx: look.x,
+    ly: look.y,
+    lz: look.z,
+    fov: camera.fov,
+    aspect: camera.aspect,
+  }
 }
 
 function flatRibbon(track: Track, lat0: number, lat1: number, y0: number, y1: number, uvMeters: number): THREE.BufferGeometry {

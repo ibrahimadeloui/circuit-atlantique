@@ -53,10 +53,10 @@ async function boot(page) {
   if (LIVE) {
     for (let attempt = 0; attempt < 6; attempt += 1) {
       try {
-        await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v10', null, { timeout: 30000 })
+        await page.waitForFunction(() => window.__game && window.__game.build === 'touch-v11', null, { timeout: 30000 })
         await page.waitForTimeout(2000)
         const build = await page.evaluate(() => window.__game && window.__game.build)
-        if (build === 'touch-v10') break
+        if (build === 'touch-v11') break
       } catch {
         /* rechargement du service worker */
       }
@@ -127,7 +127,7 @@ async function turn(page, label, side, mode) {
     return { delta, speed: now.speed, steer: input && input.steer }
   }, start.heading)
   await client.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] })
-  const sign = side === 'left' ? 1 : -1
+  const sign = side === 'left' ? -1 : 1
   assert(sign * snap.delta > 0.45, `${label} ${mode} ${side}: cap ${snap.delta.toFixed(3)} ${JSON.stringify(snap)}`)
   console.log(`${label} ${mode} ${side}: ${snap.delta.toFixed(2)} rad`)
 }
