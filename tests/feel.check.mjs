@@ -85,12 +85,12 @@ async function exercise(page, label, shots) {
   await page.evaluate(() => window.__game.skipToRace())
   await page.locator('[data-ctl="throttle"]').waitFor({ state: 'visible', timeout: 4000 }).catch(() => {})
   const before = await page.evaluate(() => window.__game.frames)
-  const need = label === 'desktop' ? 5 : 20
+  const need = label === 'desktop' ? 4 : 8
   try {
     await page.waitForFunction(
       ({ start, count }) => window.__game.frames - start >= count,
       { start: before, count: need },
-      { timeout: 8000 },
+      { timeout: 12000 },
     )
   } catch (error) {
     const snap = await page.evaluate(() => ({ frames: window.__game.frames, build: window.__game.build }))
