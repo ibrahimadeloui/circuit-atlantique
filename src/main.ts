@@ -292,8 +292,47 @@ function step(now: number): void {
   flashTime = Math.max(0, flashTime - dt)
 
   world.update(race, view(), dt)
+  publishGameState()
   ui.setModel(model())
   adaptQuality(dt)
+}
+
+const BUILD = 'forward-v6'
+
+function publishGameState(): void {
+  const player = race.cars[0]!
+  const fx = Math.cos(player.heading)
+  const fz = Math.sin(player.heading)
+  const nose = (globalThis as { __nose?: { x: number; z: number } }).__nose
+  const hook = globalThis as {
+    __game?: {
+      build: string
+      x: number
+      z: number
+      speed: number
+      heading: number
+      throttle: number
+      brake: number
+      forward: { x: number; z: number }
+    nose: { x: number; z: number } | null
+    skipToRace: () => void
+  }
+}
+  hook.__game = {
+    build: BUILD,
+    x: player.x,
+    z: player.z,
+    speed: player.speed,
+    heading: player.heading,
+    throttle: player.throttle,
+    brake: player.brake,
+    forward: { x: fx, z: fz },
+    nose: nose ?? null,
+    skipToRace() {
+      phase = 'racing'
+      race.clock = 0
+    },
+  }
 }
 
 function view(): ViewState {

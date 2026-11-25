@@ -756,6 +756,16 @@ function updateCars(race: Race, cars: CarVisual[]): void {
     view.root.rotateY(-car.heading)
     view.root.rotateZ(car.grade)
     view.root.rotateX(car.bank)
+    view.root.updateMatrixWorld()
+    const nosePoint = new THREE.Vector3(2.2, 0.6, 0).applyQuaternion(view.root.quaternion)
+    const noseDot = nosePoint.x * Math.cos(car.heading) + nosePoint.z * Math.sin(car.heading)
+    if (noseDot < 0) view.root.rotateY(Math.PI)
+    if (car.isPlayer) {
+      view.root.updateWorldMatrix(true, true)
+      const nose = new THREE.Vector3(2.2, 0.6, 0).applyMatrix4(view.root.matrixWorld)
+      const hook = globalThis as { __nose?: { x: number; z: number } }
+      hook.__nose = { x: nose.x, z: nose.z }
+    }
     const roll = THREE.MathUtils.clamp(-car.latAccel * 0.012, -0.08, 0.08)
     const pitch = THREE.MathUtils.clamp(-car.accel * 0.003, -0.04, 0.04)
     view.body.rotation.set(pitch, 0, roll)

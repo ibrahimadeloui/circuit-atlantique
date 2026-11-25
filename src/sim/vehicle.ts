@@ -87,6 +87,7 @@ export function stepVehicle(car: Car, input: DriveInput, track: Track, dt: numbe
   const accel = force / MASS
   car.accel = accel
   car.speed = clamp(car.speed + accel * dt, -8.5, 72)
+  if (throttle < 0.04 && brake < 0.04 && Math.abs(car.speed) < 0.4) car.speed = 0
 
   const speedAbs = Math.abs(car.speed)
   const lock = 0.46 + (0.11 - 0.46) * clamp(speedAbs / 58, 0, 1)

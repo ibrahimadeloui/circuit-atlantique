@@ -172,10 +172,13 @@ export function createInput(root: HTMLElement): Input {
       const step = Math.min(0.05, Math.max(0, dt))
       joyX = ease(joyX, aimX, 12, step)
       joyY = ease(joyY, aimY, 12, step)
-      const gas = keys.has('arrowup') || keys.has('w') || keys.has('z') || heldKind('throttle')
-      const stop = keys.has('arrowdown') || keys.has('s') || heldKind('brake')
-      throttle = ease(throttle, gas ? 1 : 0, 9, step)
-      brake = ease(brake, stop ? 1 : 0, 11, step)
+      // Écran : haut = clientY plus petit. updateJoy inverse ce Y, donc joyY > 0 = stick vers le haut = avancer.
+      const gas = keys.has('arrowup') || keys.has('w') || keys.has('z') || heldKind('throttle') || joyY > 0.12
+      const stop = keys.has('arrowdown') || keys.has('s') || heldKind('brake') || joyY < -0.12
+      const gasTarget = gas ? (heldKind('throttle') || keys.has('arrowup') || keys.has('w') || keys.has('z') ? 1 : Math.max(0.35, joyY)) : 0
+      const brakeTarget = stop ? (heldKind('brake') || keys.has('arrowdown') || keys.has('s') ? 1 : Math.max(0.35, -joyY)) : 0
+      throttle = ease(throttle, brakeTarget > gasTarget ? 0 : gasTarget, 9, step)
+      brake = ease(brake, brakeTarget > gasTarget ? brakeTarget : stop && !gas ? brakeTarget : 0, 11, step)
       if (throttle < 0.02) throttle = 0
       if (brake < 0.02) brake = 0
       let target = 0
@@ -213,6 +216,7 @@ export function createInput(root: HTMLElement): Input {
       handbrake: keys.has(' ') || heldKind('handbrake'),
       maxSteerStep,
       joy: { x: visX, y: visY },
+      pressed: [...keys],
     }),
   }
 }
