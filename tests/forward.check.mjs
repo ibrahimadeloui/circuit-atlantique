@@ -54,7 +54,17 @@ async function state(page) {
 
 async function ready(page, touch) {
   if (LIVE) {
-    await page.waitForFunction(() => window.__game && window.__game.build === 'forward-v6', null, { timeout: 120000 })
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        await page.waitForFunction(() => window.__game && window.__game.build === 'forward-v6', null, { timeout: 30000 })
+        await page.waitForTimeout(2500)
+        const build = await page.evaluate(() => window.__game && window.__game.build)
+        if (build === 'forward-v6') break
+      } catch {
+        /* le service worker recharge la page une fois */
+      }
+    }
+    await page.waitForFunction(() => window.__game && window.__game.build === 'forward-v6', null, { timeout: 30000 })
     await page.evaluate(() => window.__game.skipToRace())
   } else {
     await page.waitForFunction(() => window.__circuit && window.__game, null, { timeout: 90000 })
