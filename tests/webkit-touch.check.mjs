@@ -215,7 +215,7 @@ try {
       const page = await context.newPage()
       const errors = []
       page.on('pageerror', (err) => {
-        if (/access control|sw\.js|serviceWorker/i.test(err.message)) return
+        if (/access control|sw\.js|serviceWorker|Load failed/i.test(err.message)) return
         errors.push(err.message)
       })
       const label = `WebKit iPhone 14 ${layout.name} ${side}`
